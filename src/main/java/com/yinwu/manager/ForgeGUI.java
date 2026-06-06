@@ -43,24 +43,108 @@ public class ForgeGUI {
 
     private void initGUI(Inventory inv) {
         ItemStack border = createItem(Material.GRAY_STAINED_GLASS_PANE, " ");
-        ItemStack info = createItem(Material.BOOK, ChatColor.YELLOW + "锻造指南",
-            ChatColor.GRAY + "第1格: 放入要锻造的装备",
-            ChatColor.GRAY + "第2格: 放入强化材料（矿物→盔甲 / 亡灵→武器 / 农牧→工具）",
-            ChatColor.GRAY + "第3格: 放入概率调整材料（可选：炼狱/末地/挑战）",
-            ChatColor.GRAY + "中间按钮: 点击开始锻造");
 
         for (int i = 0; i < GUI_SIZE; i++) {
-            if (i == materialConfig.getSlotEquipment()) continue;
-            if (i == materialConfig.getSlotCore()) continue;
-            if (i == materialConfig.getSlotAdjuster()) continue;
-            if (i == materialConfig.getSlotForge()) {
-                inv.setItem(i, createForgeButton());
-                continue;
-            }
             inv.setItem(i, border);
         }
 
-        inv.setItem(4, info);
+        inv.setItem(9, createItem(Material.NAME_TAG, ChatColor.GREEN + "装备", ChatColor.GRAY + "放入要锻造的装备"));
+        inv.setItem(10, createItem(Material.NAME_TAG, ChatColor.GREEN + "强化材料", ChatColor.GRAY + "矿物→盔甲 / 亡灵→武器 / 农牧→工具"));
+        inv.setItem(11, createItem(Material.NAME_TAG, ChatColor.GREEN + "概率调整", ChatColor.GRAY + "炼狱/末地/挑战（可选）"));
+
+        inv.setItem(materialConfig.getSlotForge(), createForgeButton());
+
+        updateRateDisplay(inv, null);
+    }
+
+    private void updateRateDisplay(Inventory inv, String adjusterCategory) {
+        double baseFail = configManager.getAlloyForgeChance("fail-no-penalty");
+        double baseDestroy = configManager.getAlloyForgeChance("equipment-destroyed");
+        double baseDowngrade = configManager.getAlloyForgeChance("downgrade");
+        double baseSuccess = configManager.getAlloyForgeChance("success");
+        double basePerfect = configManager.getAlloyForgeChance("perfect");
+
+        double success = baseSuccess;
+        double perfect = basePerfect;
+        double failNoPenalty = baseFail;
+        double destroy = baseDestroy;
+        double downgrade = baseDowngrade;
+
+        if (adjusterCategory != null) {
+            MaterialConfig.CategoryAdjuster ca = materialConfig.getCategoryAdjuster(adjusterCategory);
+            if (ca != null) {
+                double netSuccess = ca.successBonus - ca.successPenalty;
+                double netDestroy = ca.destroyReduction - ca.destroyIncrease;
+
+                double grabFrom = failNoPenalty + destroy + downgrade;
+                if (grabFrom > 0 && netSuccess != 0) {
+                    double actual = Math.min(Math.abs(netSuccess), grabFrom) * (netSuccess > 0 ? 1 : -1);
+                    double ratio = actual / grabFrom;
+                    failNoPenalty += failNoPenalty * ratio;
+                    destroy += destroy * ratio;
+                    downgrade += downgrade * ratio;
+                    double sp = success + perfect;
+                    if (sp > 0) {
+                        success += actual * (success / sp);
+                        perfect += actual * (perfect / sp);
+                    } else {
+                        success += actual * 0.7;
+                        perfect += actual * 0.3;
+                    }
+                }
+
+                double totalBad = destroy + downgrade;
+                if (totalBad > 0 && netDestroy != 0) {
+                    double adj = Math.min(Math.abs(netDestroy), totalBad) * (netDestroy > 0 ? 1 : -1);
+                    double dr = destroy / totalBad;
+                    double dnr = downgrade / totalBad;
+                    destroy -= adj * dr;
+                    downgrade -= adj * dnr;
+                    failNoPenalty += adj;
+                }
+            }
+        }
+
+        double[] clamped = new double[]{failNoPenalty, destroy, downgrade, success, perfect};
+        for (int i = 0; i < clamped.length; i++) {
+            clamped[i] = Math.max(0, Math.min(100, clamped[i]));
+        }
+        double sum = 0;
+        for (double v : clamped) sum += v;
+        if (sum > 0) {
+            for (int i = 0; i < clamped.length; i++) {
+                clamped[i] = clamped[i] / sum * 100;
+            }
+        }
+
+        int successInt = (int) Math.round(clamped[3]);
+        int perfectInt = (int) Math.round(clamped[4]);
+        int failInt = (int) Math.round(clamped[0]);
+        int destroyInt = (int) Math.round(clamped[1]);
+        int downgradeInt = (int) Math.round(clamped[2]);
+
+        List<String> lore = new ArrayList<>();
+        lore.add(ChatColor.GREEN + "成功: " + successInt + "%  |  极品: " + perfectInt + "%");
+        lore.add(ChatColor.RED + "无惩罚: " + failInt + "%  |  摧毁: " + destroyInt + "%  |  降级: " + downgradeInt + "%");
+        if (adjusterCategory != null) {
+            String adjName = switch (adjusterCategory) {
+                case "nether" -> "炼狱";
+                case "end" -> "末地";
+                case "challenge" -> "挑战";
+                default -> adjusterCategory;
+            };
+            lore.add(ChatColor.LIGHT_PURPLE + "调整核心: " + adjName);
+        }
+
+        ItemStack rateItem = new ItemStack(Material.EXPERIENCE_BOTTLE);
+        ItemMeta meta = rateItem.getItemMeta();
+        if (meta != null) {
+            meta.setDisplayName(ChatColor.GOLD + "" + ChatColor.BOLD + "锻造概率");
+            meta.setLore(lore);
+            rateItem.setItemMeta(meta);
+        }
+
+        inv.setItem(4, rateItem);
     }
 
     private ItemStack createForgeButton() {
@@ -111,11 +195,30 @@ public class ForgeGUI {
                     event.setCancelled(true);
                     return;
                 }
+                // 延迟更新概率显示（等物品放置完成后）
+                player.getScheduler().runDelayed(plugin, (task) -> {
+                    refreshRateDisplay(player);
+                }, null, 1L);
                 return;
             }
 
             event.setCancelled(true);
         }
+    }
+
+    private void refreshRateDisplay(Player player) {
+        Inventory inv = openGUIs.get(player.getUniqueId());
+        if (inv == null) return;
+
+        ItemStack adjuster = inv.getItem(materialConfig.getSlotAdjuster());
+        String category = null;
+        if (adjuster != null && adjuster.getType() != Material.AIR) {
+            String cat = materialConfig.getCategory(adjuster);
+            if (cat != null && materialConfig.getCategoryAdjuster(cat) != null) {
+                category = cat;
+            }
+        }
+        updateRateDisplay(inv, category);
     }
 
     private void performForge(Player player) {
@@ -137,7 +240,6 @@ public class ForgeGUI {
             return;
         }
 
-        // 第2格必须放入强化类材料（mineral/undead/farming）
         if (!materialConfig.isConcentratedMaterial(strengthMat) || !materialConfig.isStrengthMaterial(strengthMat)) {
             player.sendMessage(ChatColor.RED + "第2格必须放入强化材料（矿物/亡灵/农牧系列）！");
             return;
@@ -157,7 +259,6 @@ public class ForgeGUI {
             return;
         }
 
-        // 处理第3格概率调整材料（可选）
         double adjustSuccessBonus = 0;
         double adjustDestroyBonus = 0;
         double adjustDestroyReduction = 0;
@@ -191,8 +292,8 @@ public class ForgeGUI {
         final String finalAdjCategory = adjusterCategory;
 
         inv.setItem(materialConfig.getSlotEquipment(), null);
-        inv.setItem(materialConfig.getSlotCore(), null);
-        inv.setItem(materialConfig.getSlotAdjuster(), null);
+        inv.setItem(materialConfig.getSlotCore(), consumeOne(strengthMat));
+        inv.setItem(materialConfig.getSlotAdjuster(), adjusterMat != null && adjusterMat.getType() != Material.AIR ? consumeOne(adjusterMat) : null);
         refreshGUI(inv);
 
         double netSuccessBonus = adjustSuccessBonus - adjustSuccessPenalty;
@@ -212,8 +313,8 @@ public class ForgeGUI {
 
             if (result != null && result != ForgeResult.EQUIPMENT_DESTROYED) {
                 Map<Integer, ItemStack> leftover = player.getInventory().addItem(equipment);
-                if (!leftover.isEmpty()) {
-                    player.getWorld().dropItemNaturally(player.getLocation(), equipment);
+                for (ItemStack left : leftover.values()) {
+                    player.getWorld().dropItemNaturally(player.getLocation(), left);
                 }
             }
 
@@ -239,10 +340,17 @@ public class ForgeGUI {
     private void returnItems(Player player, ItemStack item) {
         if (item != null && item.getType() != Material.AIR) {
             Map<Integer, ItemStack> leftover = player.getInventory().addItem(item);
-            if (!leftover.isEmpty()) {
-                player.getWorld().dropItemNaturally(player.getLocation(), item);
+            for (ItemStack left : leftover.values()) {
+                player.getWorld().dropItemNaturally(player.getLocation(), left);
             }
         }
+    }
+
+    private ItemStack consumeOne(ItemStack item) {
+        if (item == null || item.getType() == Material.AIR) return null;
+        if (item.getAmount() <= 1) return null;
+        item.setAmount(item.getAmount() - 1);
+        return item;
     }
 
     public boolean isOpenGUI(Player player) {

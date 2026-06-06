@@ -60,6 +60,8 @@ public class CommandHandler implements TabExecutor {
                 case "give" -> handleGive(player, args);
                 default -> sendHelp(player);
             }
+        } else {
+            sendHelp(player);
         }
 
         return true;
