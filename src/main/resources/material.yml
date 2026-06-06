@@ -1,0 +1,279 @@
+# ============================================================
+# YinwuForge 材料定义文件
+# 材料通过 MythicMobs 插件发放，本文件仅用于匹配物品识别
+# 匹配规则: 物品类型(material) + 自定义名称(name)
+# ============================================================
+#
+# category 分类说明:
+#   mineral  - 强化盔甲属性（放入槽2）
+#   undead   - 强化武器属性（放入槽2）
+#   farming  - 强化工具属性（放入槽2）
+#   nether   - 提高成功率+15%，损坏率+5%（放入槽3，可选）
+#   end      - 降低损坏率-8%，成功率-10%（放入槽3，可选）
+#   challenge- 锻造等级≥5时损坏率-15%（放入槽3，可选）
+#
+
+materials:
+
+  # ============================================================
+  # 矿物系列 — 用于强化盔甲
+  # 原版底材: COPPER_INGOT(铜锭), GOLD_INGOT(金锭), IRON_INGOT(铁锭),
+  #           DIAMOND(钻石), NETHERITE_INGOT(下界合金锭)
+  # ============================================================
+
+  copper:
+    material: COPPER_INGOT
+    name: "§6浓缩铜"
+    lore: "§7大地精华凝聚而成"
+    category: mineral
+    function: "强化盔甲材料"
+
+  gold:
+    material: GOLD_INGOT
+    name: "§6浓缩金"
+    lore: "§7大地精华凝聚而成"
+    category: mineral
+    function: "强化盔甲材料"
+
+  iron:
+    material: IRON_INGOT
+    name: "§6浓缩铁"
+    lore: "§7大地精华凝聚而成"
+    category: mineral
+    function: "强化盔甲材料"
+
+  diamond:
+    material: DIAMOND
+    name: "§b浓缩钻石"
+    lore: "§7大地精华凝聚而成"
+    category: mineral
+    function: "强化盔甲材料"
+
+  netherite:
+    material: NETHERITE_INGOT
+    name: "§5浓缩下界合金"
+    lore: "§7大地精华凝聚而成"
+    category: mineral
+    function: "强化盔甲材料"
+
+  # ============================================================
+  # 亡灵系列 — 用于强化武器
+  # 原版底材: ROTTEN_FLESH(腐肉), BONE(骨头), GUNPOWDER(火药),
+  #           SPIDER_EYE(蜘蛛眼), PHANTOM_MEMBRANE(幻翼膜)
+  # ============================================================
+
+  rotten_flesh:
+    material: ROTTEN_FLESH
+    name: "§a浓缩腐肉"
+    lore: "§7亡灵精华凝聚而成"
+    category: undead
+    function: "强化武器材料"
+
+  bone:
+    material: BONE
+    name: "§f浓缩骨头"
+    lore: "§7亡灵精华凝聚而成"
+    category: undead
+    function: "强化武器材料"
+
+  gunpowder:
+    material: GUNPOWDER
+    name: "§8浓缩火药"
+    lore: "§7亡灵精华凝聚而成"
+    category: undead
+    function: "强化武器材料"
+
+  spider_eye:
+    material: SPIDER_EYE
+    name: "§a浓缩蛛眼"
+    lore: "§7亡灵精华凝聚而成"
+    category: undead
+    function: "强化武器材料"
+
+  phantom_membrane:
+    material: PHANTOM_MEMBRANE
+    name: "§b浓缩幻翼膜"
+    lore: "§7亡灵精华凝聚而成"
+    category: undead
+    function: "强化武器材料"
+
+  # ============================================================
+  # 农牧系列 — 用于强化工具
+  # 原版底材: HONEYCOMB(蜜脾), TURTLE_SCUTE(乌龟鳞甲),
+  #           POISONOUS_POTATO(毒土豆), ARMADILLO_SCUTE(犰狳鳞甲),
+  #           NETHER_WART(下界疣)
+  # ============================================================
+
+  honeycomb:
+    material: HONEYCOMB
+    name: "§6浓缩蜜脾"
+    lore: "§7农牧精华凝聚而成"
+    category: farming
+    function: "强化工具材料"
+
+  turtle_scute:
+    material: TURTLE_SCUTE
+    name: "§2浓缩乌龟鳞甲"
+    lore: "§7农牧精华凝聚而成"
+    category: farming
+    function: "强化工具材料"
+
+  poisonous_potato:
+    material: POISONOUS_POTATO
+    name: "§a浓缩毒土豆"
+    lore: "§7农牧精华凝聚而成"
+    category: farming
+    function: "强化工具材料"
+
+  armadillo_scute:
+    material: ARMADILLO_SCUTE
+    name: "§7浓缩犰狳鳞甲"
+    lore: "§7农牧精华凝聚而成"
+    category: farming
+    function: "强化工具材料"
+
+  nether_wart:
+    material: NETHER_WART
+    name: "§c浓缩疣"
+    lore: "§7农牧精华凝聚而成"
+    category: farming
+    function: "强化工具材料"
+
+  # ============================================================
+  # 炼狱系列 — 提高成功率，略微提高损坏率
+  # 原版底材: GHAST_TEAR(恶魂之泪), MAGMA_CREAM(岩浆膏),
+  #           BLAZE_ROD(烈焰棒), QUARTZ(下界石英),
+  #           GLOWSTONE_DUST(荧石粉)
+  # ============================================================
+
+  ghast_tear:
+    material: GHAST_TEAR
+    name: "§d浓缩泪滴"
+    lore: "§7炼狱精华凝聚而成"
+    category: nether
+    function: "成功率+15%, 损坏率+5%"
+
+  magma_cream:
+    material: MAGMA_CREAM
+    name: "§6浓缩岩浆球"
+    lore: "§7炼狱精华凝聚而成"
+    category: nether
+    function: "成功率+15%, 损坏率+5%"
+
+  blaze_rod:
+    material: BLAZE_ROD
+    name: "§e浓缩烈焰棒"
+    lore: "§7炼狱精华凝聚而成"
+    category: nether
+    function: "成功率+15%, 损坏率+5%"
+
+  quartz:
+    material: QUARTZ
+    name: "§f浓缩石英"
+    lore: "§7炼狱精华凝聚而成"
+    category: nether
+    function: "成功率+15%, 损坏率+5%"
+
+  glowstone_dust:
+    material: GLOWSTONE_DUST
+    name: "§e浓缩荧光粉"
+    lore: "§7炼狱精华凝聚而成"
+    category: nether
+    function: "成功率+15%, 损坏率+5%"
+
+  # ============================================================
+  # 末地系列 — 降低损坏率，降低成功率
+  # 原版底材: SHULKER_SHELL(潜影壳), ENDER_PEARL(末影珍珠),
+  #           CHORUS_FRUIT(紫颂果), DRAGON_BREATH(龙息),
+  #           END_STONE(末地石)
+  # ============================================================
+
+  shulker_shell:
+    material: SHULKER_SHELL
+    name: "§d浓缩潜影壳"
+    lore: "§7末地精华凝聚而成"
+    category: end
+    function: "损坏率-8%, 成功率-10%"
+
+  ender_pearl:
+    material: ENDER_PEARL
+    name: "§5浓缩末影珍珠"
+    lore: "§7末地精华凝聚而成"
+    category: end
+    function: "损坏率-8%, 成功率-10%"
+
+  chorus_fruit:
+    material: CHORUS_FRUIT
+    name: "§d浓缩紫菘果"
+    lore: "§7末地精华凝聚而成"
+    category: end
+    function: "损坏率-8%, 成功率-10%"
+
+  dragon_breath:
+    material: DRAGON_BREATH
+    name: "§5浓缩龙息"
+    lore: "§7末地精华凝聚而成"
+    category: end
+    function: "损坏率-8%, 成功率-10%"
+
+  end_stone:
+    material: END_STONE
+    name: "§7浓缩末地石"
+    lore: "§7末地精华凝聚而成"
+    category: end
+    function: "损坏率-8%, 成功率-10%"
+
+  # ============================================================
+  # 挑战系列 — 锻造等级≥5时损坏率-15%
+  # 原版底材: DRAGON_EGG(龙蛋), NETHER_STAR(下界之星),
+  #           HEART_OF_THE_SEA(海洋之心), ECHO_SHARD(回响碎片),
+  #           SPONGE(海绵)
+  # ============================================================
+
+  dragon_egg:
+    material: DRAGON_EGG
+    name: "§5浓缩末影龙蛋"
+    lore: "§7挑战极限的证明"
+    category: challenge
+    function: "锻造等级≥5时损坏率-15%"
+
+  nether_star:
+    material: NETHER_STAR
+    name: "§b浓缩下界之星"
+    lore: "§7挑战极限的证明"
+    category: challenge
+    function: "锻造等级≥5时损坏率-15%"
+
+  heart_of_the_sea:
+    material: HEART_OF_THE_SEA
+    name: "§b浓缩海洋之心"
+    lore: "§7挑战极限的证明"
+    category: challenge
+    function: "锻造等级≥5时损坏率-15%"
+
+  echo_shard:
+    material: ECHO_SHARD
+    name: "§d浓缩回响碎片"
+    lore: "§7挑战极限的证明"
+    category: challenge
+    function: "锻造等级≥5时损坏率-15%"
+
+  sponge:
+    material: SPONGE
+    name: "§e浓缩海绵"
+    lore: "§7挑战极限的证明"
+    category: challenge
+    function: "锻造等级≥5时损坏率-15%"
+
+  # ============================================================
+  # 药水锻造材料（锻造奇点）
+  # 原版底材: AMETHYST_SHARD(紫水晶碎片)
+  # 用于给装备附加药水效果（药水锻造）
+  # ============================================================
+
+  potion:
+    material: AMETHYST_SHARD
+    name: "§6§l锻造奇点"
+    lore: "§7用于附加药水效果的基础材料"
+    category: potion
+    function: "药水锻造（附加速度/力量/急迫等效果）"
