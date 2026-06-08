@@ -145,7 +145,7 @@ public class MaterialConfig {
 
         ConfigurationSection guiSection = config.getConfigurationSection("forge-gui");
         if (guiSection != null) {
-            guiTitle = guiSection.getString("title", "§8⟁ 隐刃锻造台 ⟁");
+            guiTitle = guiSection.getString("title", "§8Yinwu锻造");
             slotEquipment = guiSection.getInt("slot-equipment", 0);
             slotCore = guiSection.getInt("slot-core", 1);
             slotAdjuster = guiSection.getInt("slot-adjuster", 2);

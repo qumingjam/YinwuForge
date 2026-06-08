@@ -71,6 +71,11 @@ public class ForgeGUI {
             Material.BOW, Material.CROSSBOW
         }) {
             ItemStack item = new ItemStack(mat);
+            ItemMeta meta = item.getItemMeta();
+            if (meta != null) {
+                meta.setDisplayName(ChatColor.GRAY + "（样本）");
+                item.setItemMeta(meta);
+            }
             equipPreviews.add(item);
         }
 
@@ -78,6 +83,16 @@ public class ForgeGUI {
         for (MaterialConfig.ConcentratedMat cm : materialConfig.getAllConcentrated()) {
             ItemStack sample = cm.createItem(1);
             if (materialConfig.isStrengthMaterial(sample)) {
+                ItemMeta meta = sample.getItemMeta();
+                if (meta != null) {
+                    String name = meta.getDisplayName();
+                    meta.setDisplayName(name + ChatColor.GRAY + " （样本）");
+                    List<String> lore = meta.getLore();
+                    if (lore == null) lore = new ArrayList<>();
+                    lore.add(ChatColor.DARK_GRAY + "仅用作预览展示");
+                    meta.setLore(lore);
+                    sample.setItemMeta(meta);
+                }
                 corePreviews.add(sample);
             }
         }
@@ -86,6 +101,16 @@ public class ForgeGUI {
         for (MaterialConfig.ConcentratedMat cm : materialConfig.getAllConcentrated()) {
             ItemStack sample = cm.createItem(1);
             if (materialConfig.isAdjusterMaterial(sample)) {
+                ItemMeta meta = sample.getItemMeta();
+                if (meta != null) {
+                    String name = meta.getDisplayName();
+                    meta.setDisplayName(name + ChatColor.GRAY + " （样本）");
+                    List<String> lore = meta.getLore();
+                    if (lore == null) lore = new ArrayList<>();
+                    lore.add(ChatColor.DARK_GRAY + "仅用作预览展示");
+                    meta.setLore(lore);
+                    sample.setItemMeta(meta);
+                }
                 adjusterPreviews.add(sample);
             }
         }
@@ -170,95 +195,29 @@ public class ForgeGUI {
         double baseSuccess = configManager.getAlloyForgeChance("success");
         double basePerfect = configManager.getAlloyForgeChance("perfect");
 
-        double success = baseSuccess;
-        double perfect = basePerfect;
-        double failNoPenalty = baseFail;
-        double destroy = baseDestroy;
-        double downgrade = baseDowngrade;
+        double netSuccessBonus = 0;
+        double netDestroyReduction = 0;
 
         if (adjusterCategory != null) {
             MaterialConfig.CategoryAdjuster ca = materialConfig.getCategoryAdjuster(adjusterCategory);
             if (ca != null) {
-                double netSuccess = ca.successBonus - ca.successPenalty;
-                double netDestroy = ca.destroyReduction - ca.destroyIncrease;
-
-                double grabFrom = failNoPenalty + destroy + downgrade;
-                if (grabFrom > 0 && netSuccess != 0) {
-                    double actual = Math.min(Math.abs(netSuccess), grabFrom) * (netSuccess > 0 ? 1 : -1);
-                    double ratio = actual / grabFrom;
-                    failNoPenalty += failNoPenalty * ratio;
-                    destroy += destroy * ratio;
-                    downgrade += downgrade * ratio;
-                    double sp = success + perfect;
-                    if (sp > 0) {
-                        success += actual * (success / sp);
-                        perfect += actual * (perfect / sp);
-                    } else {
-                        success += actual * 0.7;
-                        perfect += actual * 0.3;
-                    }
-                }
-
-                double totalBad = destroy + downgrade;
-                if (totalBad > 0 && netDestroy != 0) {
-                    double adj = Math.min(Math.abs(netDestroy), totalBad) * (netDestroy > 0 ? 1 : -1);
-                    double dr = destroy / totalBad;
-                    double dnr = downgrade / totalBad;
-                    destroy -= adj * dr;
-                    downgrade -= adj * dnr;
-                    failNoPenalty += adj;
-                }
+                netSuccessBonus += ca.successBonus - ca.successPenalty;
+                netDestroyReduction += ca.destroyReduction - ca.destroyIncrease;
             }
         }
 
-        // 应用祭坛加成（与 performForge 中的逻辑一致）
-        if (altarSuccessBonus != 0) {
-            double grabFrom = failNoPenalty + destroy + downgrade;
-            if (grabFrom > 0) {
-                double actual = Math.min(Math.abs(altarSuccessBonus), grabFrom) * (altarSuccessBonus > 0 ? 1 : -1);
-                double ratio = actual / grabFrom;
-                failNoPenalty += failNoPenalty * ratio;
-                destroy += destroy * ratio;
-                downgrade += downgrade * ratio;
-                double sp = success + perfect;
-                if (sp > 0) {
-                    success += actual * (success / sp);
-                    perfect += actual * (perfect / sp);
-                } else {
-                    success += actual * 0.7;
-                    perfect += actual * 0.3;
-                }
-            }
-        }
-        if (altarFailReduction != 0) {
-            double totalBad = destroy + downgrade;
-            if (totalBad > 0) {
-                double adj = Math.min(Math.abs(altarFailReduction), totalBad) * (altarFailReduction > 0 ? 1 : -1);
-                double dr = destroy / totalBad;
-                double dnr = downgrade / totalBad;
-                destroy -= adj * dr;
-                downgrade -= adj * dnr;
-                failNoPenalty += adj;
-            }
-        }
+        netSuccessBonus += altarSuccessBonus;
+        netDestroyReduction += altarFailReduction;
 
-        double[] clamped = new double[]{failNoPenalty, destroy, downgrade, success, perfect};
-        for (int i = 0; i < clamped.length; i++) {
-            clamped[i] = Math.max(0, Math.min(100, clamped[i]));
-        }
-        double sum = 0;
-        for (double v : clamped) sum += v;
-        if (sum > 0) {
-            for (int i = 0; i < clamped.length; i++) {
-                clamped[i] = clamped[i] / sum * 100;
-            }
-        }
+        double[] probs = ForgeManager.calculateAdjustedProbs(
+            baseFail, baseDestroy, baseDowngrade, baseSuccess, basePerfect,
+            netSuccessBonus, netDestroyReduction);
 
-        int successInt = (int) Math.round(clamped[3]);
-        int perfectInt = (int) Math.round(clamped[4]);
-        int failInt = (int) Math.round(clamped[0]);
-        int destroyInt = (int) Math.round(clamped[1]);
-        int downgradeInt = (int) Math.round(clamped[2]);
+        int failInt = (int) Math.round(probs[0]);
+        int destroyInt = (int) Math.round(probs[1]);
+        int downgradeInt = (int) Math.round(probs[2]);
+        int successInt = (int) Math.round(probs[3]);
+        int perfectInt = (int) Math.round(probs[4]);
 
         List<String> lore = new ArrayList<>();
         lore.add(ChatColor.GREEN + "成功: " + successInt + "%  |  极品: " + perfectInt + "%");
@@ -389,31 +348,10 @@ public class ForgeGUI {
         } else {
             ClickType click = event.getClick();
             if (click == ClickType.SHIFT_LEFT || click == ClickType.SHIFT_RIGHT) {
-                ItemStack clicked = event.getCurrentItem();
-                if (clicked != null && clicked.getType() != Material.AIR) {
-                    int equipSlot = materialConfig.getSlotEquipment();
-                    int coreSlot = materialConfig.getSlotCore();
-                    int adjusterSlot = materialConfig.getSlotAdjuster();
-                    for (int target : new int[]{equipSlot, coreSlot, adjusterSlot}) {
-                        ItemStack existing = inv.getItem(target);
-                        if (existing == null || existing.getType() == Material.AIR) {
-                            event.setCancelled(true);
-                            rotationIndex++;
-                            inv.setItem(target, clicked.clone());
-                            int raw = event.getRawSlot();
-                            if (raw >= GUI_SIZE) {
-                                int pSlot = raw - GUI_SIZE;
-                                if (pSlot < player.getInventory().getSize()) {
-                                    player.getInventory().setItem(pSlot, null);
-                                }
-                            }
-                            player.getScheduler().runDelayed(plugin, (task) -> {
-                                refreshRateDisplay(player);
-                            }, null, 1L);
-                            break;
-                        }
-                    }
-                }
+                rotationIndex++;
+                player.getScheduler().runDelayed(plugin, (task) -> {
+                    refreshRateDisplay(player);
+                }, null, 1L);
             }
         }
     }

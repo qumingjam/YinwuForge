@@ -972,14 +972,33 @@ public class ForgeManager {
         double success = configManager.getAlloyForgeChance(CHANCE_SUCCESS);
         double perfect = configManager.getAlloyForgeChance("perfect");
 
-        // 钳制基础值到 [0, 100]
+        double[] finalProbs = calculateAdjustedProbs(failNoPenalty, equipmentDestroyed, downgrade, success, perfect,
+                                                     netSuccessBonus, netDestroyReduction);
+
+        double roll = random.nextDouble() * 100;
+
+        if (roll < finalProbs[0]) {
+            return ForgeResult.FAIL_NO_PENALTY;
+        } else if (roll < finalProbs[0] + finalProbs[1]) {
+            return ForgeResult.EQUIPMENT_DESTROYED;
+        } else if (roll < finalProbs[0] + finalProbs[1] + finalProbs[2]) {
+            return ForgeResult.DOWNGRADE;
+        } else if (roll < finalProbs[0] + finalProbs[1] + finalProbs[2] + finalProbs[3]) {
+            return ForgeResult.SUCCESS;
+        } else {
+            return ForgeResult.PERFECT;
+        }
+    }
+
+    public static double[] calculateAdjustedProbs(double failNoPenalty, double equipmentDestroyed,
+                                                   double downgrade, double success, double perfect,
+                                                   double netSuccessBonus, double netDestroyReduction) {
         failNoPenalty = clamp(failNoPenalty, 0, 100);
         equipmentDestroyed = clamp(equipmentDestroyed, 0, 100);
         downgrade = clamp(downgrade, 0, 100);
         success = clamp(success, 0, 100);
         perfect = clamp(perfect, 0, 100);
 
-        // 归一化基础值，保证加起来等于 100
         double[] baseProbs = normalizeProbs(new double[]{failNoPenalty, equipmentDestroyed, downgrade, success, perfect});
         failNoPenalty = baseProbs[0];
         equipmentDestroyed = baseProbs[1];
@@ -987,17 +1006,14 @@ public class ForgeManager {
         success = baseProbs[3];
         perfect = baseProbs[4];
 
-        // 1) 应用净成功加成：从失败率中抽取，分配给 success + perfect
         if (netSuccessBonus != 0) {
             double grabFrom = failNoPenalty + equipmentDestroyed + downgrade;
             if (grabFrom > 0) {
                 double actualBonus = clamp(netSuccessBonus, -grabFrom, grabFrom);
-                // 按比例从失败率中扣除
                 double ratio = actualBonus / grabFrom;
                 failNoPenalty += failNoPenalty * ratio;
                 equipmentDestroyed += equipmentDestroyed * ratio;
                 downgrade += downgrade * ratio;
-                // 加给 success 和 perfect（按原始比例）
                 double successPool = success + perfect;
                 if (successPool > 0) {
                     success += actualBonus * (success / successPool);
@@ -1009,7 +1025,6 @@ public class ForgeManager {
             }
         }
 
-        // 2) 应用净损坏调整（正数=减少损坏，负数=增加损坏）
         if (netDestroyReduction != 0) {
             double totalBad = equipmentDestroyed + downgrade;
             if (totalBad > 0) {
@@ -1018,46 +1033,24 @@ public class ForgeManager {
                 double downgradeRatio = downgrade / totalBad;
                 equipmentDestroyed -= adjustment * destroyRatio;
                 downgrade -= adjustment * downgradeRatio;
-                // 损坏减少的部分加到无惩罚上
                 failNoPenalty += adjustment;
             }
         }
 
-        // 3) 最终钳制 + 归一化，保证 5 个概率加起来 = 100
-        double[] finalProbs = normalizeProbs(new double[]{failNoPenalty, equipmentDestroyed, downgrade, success, perfect});
-        failNoPenalty = finalProbs[0];
-        equipmentDestroyed = finalProbs[1];
-        downgrade = finalProbs[2];
-        success = finalProbs[3];
-        perfect = finalProbs[4];
-
-        double roll = random.nextDouble() * 100;
-
-        if (roll < failNoPenalty) {
-            return ForgeResult.FAIL_NO_PENALTY;
-        } else if (roll < failNoPenalty + equipmentDestroyed) {
-            return ForgeResult.EQUIPMENT_DESTROYED;
-        } else if (roll < failNoPenalty + equipmentDestroyed + downgrade) {
-            return ForgeResult.DOWNGRADE;
-        } else if (roll < failNoPenalty + equipmentDestroyed + downgrade + success) {
-            return ForgeResult.SUCCESS;
-        } else {
-            return ForgeResult.PERFECT;
-        }
+        return normalizeProbs(new double[]{failNoPenalty, equipmentDestroyed, downgrade, success, perfect});
     }
 
     /**
      * 钳制值在 [min, max] 范围内
      */
-    private double clamp(double value, double min, double max) {
+    public static double clamp(double value, double min, double max) {
         return Math.max(min, Math.min(max, value));
     }
 
     /**
      * 将一组概率按比例归一化到总和 100
-     * 所有值先钳制到 [0, 100]，然后再缩放
      */
-    private double[] normalizeProbs(double[] probs) {
+    public static double[] normalizeProbs(double[] probs) {
         double[] clamped = new double[probs.length];
         double sum = 0;
         for (int i = 0; i < probs.length; i++) {

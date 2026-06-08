@@ -180,7 +180,7 @@ alloy-forge:
 
 # 锻造GUI配置
 forge-gui:
-  title: "§8⟁ 隐刃锻造台 ⟁"
+  title: "§8Yinwu锻造"
   slot-equipment: 0
   slot-core: 1
   slot-adjuster: 2
