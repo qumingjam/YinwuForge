@@ -231,20 +231,17 @@ public class AltarManager {
         return Math.min(count, maxBonusBlocks);
     }
     
-    /**
-     * 获取当前祭坛的成功率加成
-     */
-    public double getSuccessBonus(Block centerBlock) {
-        int bonusBlocks = countBonusBlocks(centerBlock);
-        return bonusBlocks * successBonusPerBlock;
+    public int[] getBonusValues(Block centerBlock) {
+        int count = countBonusBlocks(centerBlock);
+        return new int[]{count, (int)(count * successBonusPerBlock), (int)(count * failReductionPerBlock)};
     }
-    
-    /**
-     * 获取当前祭坛的失败率减少
-     */
+
+    public double getSuccessBonus(Block centerBlock) {
+        return getBonusValues(centerBlock)[1];
+    }
+
     public double getFailReduction(Block centerBlock) {
-        int bonusBlocks = countBonusBlocks(centerBlock);
-        return bonusBlocks * failReductionPerBlock;
+        return getBonusValues(centerBlock)[2];
     }
     
     /**
@@ -279,26 +276,31 @@ public class AltarManager {
         forgeGUI.openForgeGUI(player);
     }
 
-    /**
-     * 获取玩家当前祭坛的成功率加成
-     */
     public double getPlayerSuccessBonus(Player player) {
         Location loc = playerAltars.get(player.getUniqueId());
         if (loc == null) return 0;
         Block block = loc.getBlock();
         if (block.getType() != centerBlock) return 0;
-        return getSuccessBonus(block);
+        int[] values = getBonusValues(block);
+        return values[1];
     }
 
-    /**
-     * 获取玩家当前祭坛的失败率减少
-     */
     public double getPlayerFailReduction(Player player) {
         Location loc = playerAltars.get(player.getUniqueId());
         if (loc == null) return 0;
         Block block = loc.getBlock();
         if (block.getType() != centerBlock) return 0;
-        return getFailReduction(block);
+        int[] values = getBonusValues(block);
+        return values[2];
+    }
+
+    /**
+     * 播放玩家当前祭坛的锻造特效
+     */
+    public void playForgeEffects(Player player, ForgeResult result) {
+        Location loc = playerAltars.get(player.getUniqueId());
+        if (loc == null) return;
+        playForgeEffects(player, loc, result);
     }
     
     private void playForgeEffects(Player player, Location location, ForgeResult result) {
@@ -431,7 +433,7 @@ public class AltarManager {
             .orElse("无"));
         if (layerBonusEnabled) {
             guide.add(ChatColor.WHITE + "第二层加成: 在中心上方一格放置更多底座方块");
-            guide.add(ChatColor.GRAY + "  - 每个增加: " + (successBonusPerBlock * 100) + "% 成功率, -" + (failReductionPerBlock * 100) + "% 失败率");
+            guide.add(ChatColor.GRAY + "  - 每个增加: " + (int)successBonusPerBlock + "% 成功率, -" + (int)failReductionPerBlock + "% 失败率");
             guide.add(ChatColor.GRAY + "  - 最多: " + maxBonusBlocks + " 个");
         }
         guide.add("");

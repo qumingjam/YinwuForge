@@ -22,14 +22,6 @@ public class CommandHandler implements TabExecutor {
     private final MaterialConfig materialConfig;
 
     private static final List<String> GIVE_TYPES = Arrays.asList("potion", "concentrated");
-    private static final List<String> CONCENTRATED_IDS = Arrays.asList(
-        "copper", "gold", "iron", "diamond", "netherite",
-        "rotten_flesh", "bone", "gunpowder", "spider_eye", "phantom_membrane",
-        "honeycomb", "turtle_scute", "poisonous_potato", "armadillo_scute", "nether_wart",
-        "ghast_tear", "magma_cream", "blaze_rod", "quartz", "glowstone_dust",
-        "shulker_shell", "ender_pearl", "chorus_fruit", "dragon_breath", "end_stone",
-        "dragon_egg", "nether_star", "heart_of_the_sea", "echo_shard", "sponge"
-    );
 
     public CommandHandler(YinwuForgePlugin plugin, ConfigManager configManager,
                           ForgeManager forgeManager, PotionEffectManager potionEffectManager,
@@ -83,7 +75,11 @@ public class CommandHandler implements TabExecutor {
         } else if (args.length == 3 && args[0].equalsIgnoreCase("give")
             && args[1].equalsIgnoreCase("concentrated")) {
             if (sender.hasPermission("yinwu.forge.admin")) {
-                StringUtil.copyPartialMatches(args[2], CONCENTRATED_IDS, completions);
+                List<String> ids = new ArrayList<>();
+                for (MaterialConfig.ConcentratedMat cm : materialConfig.getAllConcentrated()) {
+                    ids.add(cm.id);
+                }
+                StringUtil.copyPartialMatches(args[2], ids, completions);
             }
         }
 

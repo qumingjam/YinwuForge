@@ -5,26 +5,21 @@ import com.yinwu.model.EquipmentAttributes;
 import com.yinwu.model.EquipmentData;
 import com.yinwu.model.ForgeResult;
 import com.yinwu.model.PotionEffectData;
-import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
 import org.bukkit.Material;
 import org.bukkit.NamespacedKey;
 import org.bukkit.attribute.Attribute;
 import org.bukkit.attribute.AttributeModifier;
-import org.bukkit.enchantments.Enchantment;
 import org.bukkit.entity.Player;
-import org.bukkit.inventory.EquipmentSlot;
 import org.bukkit.inventory.EquipmentSlotGroup;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.Damageable;
 import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.persistence.PersistentDataType;
 
-import com.google.common.collect.ArrayListMultimap;
 import com.google.common.collect.Multimap;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -37,7 +32,6 @@ public class ForgeManager {
     private final ConfigManager configManager;
     private final PotionEffectManager potionEffectManager;
     private final AlloyForgeConfig alloyForgeConfig;
-    private final PotionForgeConfig potionForgeConfig;
     private final Random random;
     
     // 白名单配置
@@ -67,15 +61,6 @@ public class ForgeManager {
     private static final String ATTR_ARMOR_VALUE = "armorValue";
     private static final String ATTR_ATTACK_SPEED = "attackSpeed";
     private static final String ATTR_BASE_DAMAGE = "baseDamage";
-    
-    // 消息常量
-    private static final String MSG_FORGE_SUCCESS = "锻造成功 - 装备等级提升！";
-    private static final String MSG_FORGE_DOWNGRADE = "锻造失败 - 装备等级降低！";
-    private static final String MSG_FORGE_DESTROYED = "装备已损毁！";
-    private static final String MSG_FORGE_NEGATIVE_EFFECT = "附加负面效果: ";
-    private static final String MSG_NO_ATTRIBUTES = "该装备无可提升的属性";
-    private static final String MSG_PERFECT = "完美锻造 - 获得极品属性！";
-    private static final String MSG_NO_EFFECTS = "该装备无可添加的效果";
     
     // ===== 硬编码武器基础属性映射表 =====
     // 基础伤害贡献值（不含空手1点）
@@ -221,12 +206,11 @@ public class ForgeManager {
         }
     }
     
-    public ForgeManager(YinwuForgePlugin plugin, ConfigManager configManager, AlloyForgeConfig alloyForgeConfig, PotionForgeConfig potionForgeConfig, PotionEffectManager potionEffectManager) {
+    public ForgeManager(YinwuForgePlugin plugin, ConfigManager configManager, AlloyForgeConfig alloyForgeConfig, PotionEffectManager potionEffectManager) {
         this.plugin = plugin;
         this.configManager = configManager;
         this.potionEffectManager = potionEffectManager;
         this.alloyForgeConfig = alloyForgeConfig;
-        this.potionForgeConfig = potionForgeConfig;
         this.random = new Random();
         loadConfig();
     }
@@ -296,493 +280,7 @@ public class ForgeManager {
         }
     }
     
-    /**
-     * 执行锻造操作
-     */
-    public ForgeResult executeForge(Player player, ItemStack equipment, ItemStack material) {
-        return executeForge(player, equipment, material, 0.0, 0.0);
-    }
-    
-    /**
-     * 执行锻造操作（带加成）
-     * @param successBonus 成功率加成(%)
-     * @param failReduction 失败率减少(%)
-     */
-    public ForgeResult executeForge(Player player, ItemStack equipment, ItemStack material, 
-                                    double successBonus, double failReduction) {
-        if (equipment == null || equipment.getType() == Material.AIR) {
-            player.sendMessage(ChatColor.RED + "主手必须持有装备！");
-            return null;
-        }
-        
-        if (material == null || material.getType() == Material.AIR) {
-            player.sendMessage(ChatColor.RED + "副手必须持有锻造材料（奇点或新矿石）！");
-            return null;
-        }
-        
-        // 检查冷却
-        UUID playerUUID = player.getUniqueId();
-        long currentTime = System.currentTimeMillis();
-        long cooldownMillis = cooldownSeconds * 1000L;
-        Long lastForgeTime = playerCooldowns.get(playerUUID);
-        
-        if (lastForgeTime != null && (currentTime - lastForgeTime) < cooldownMillis) {
-            long remaining = (cooldownMillis - (currentTime - lastForgeTime));
-            double remainingSeconds = remaining / 1000.0;
-            player.sendActionBar(ChatColor.RED + "锻造冷却中！剩余 " + String.format("%.1f", remainingSeconds) + " 秒");
-            return null;
-        }
-        
-        // 检查装备类型是否支持锻造（仅工具、武器、盔甲、鞘翅）
-        EquipmentType equipType = getEquipmentType(equipment);
-        if (equipType == EquipmentType.OTHER) {
-            player.sendMessage(ChatColor.RED + "该物品无法进行锻造！");
-            player.sendMessage(ChatColor.GRAY + "仅支持工具、武器、盔甲和鞘翅");
-            return null;
-        }
-        
-        // 检查是否为第二种材料（下界合金锭）
-        if (isAlloyMaterial(material)) {
-            // 执行合金锻造（属性修改）
-            return executeAlloyForge(player, equipment, material, successBonus, failReduction);
-        }
-        
-        // 检查材料是否有效
-        if (!isValidForgeMaterial(material)) {
-            // 提供更详细的错误信息
-            String customName = potionForgeConfig.getCustomName();
-            if (customName != null && !customName.isEmpty()) {
-                player.sendMessage(ChatColor.RED + "无效的锻造材料！");
-                player.sendMessage(ChatColor.GRAY + "药水锻造需要名称为 " + customName + ChatColor.GRAY + " 的下界之星");
-                player.sendMessage(ChatColor.GRAY + "或使用矿石、原石等材料");
-            } else {
-                player.sendMessage(ChatColor.RED + "无效的锻造材料！");
-            }
-            return null;
-        }
-        
-        // 获取或创建装备数据
-        EquipmentData equipmentData = getEquipmentData(equipment);
-        
-        // 检查是否有特殊效果，如果有则无法锻造
-        if (equipmentData.containsSpecialEffect()) {
-            player.sendMessage(ChatColor.RED + "该装备已附加特殊效果，无法继续锻造！");
-            return null;
-        }
-        
-        // 根据药水锻造概率确定结果（带加成）
-        ForgeResult result = determinePotionForgeResult(successBonus, failReduction);
-        
-        // 应用锻造结果（包含药水效果）
-        applyForgeResult(player, equipment, equipmentData, result);
-        
-        // 锻造完成后，立即应用属性到物品（包括耐久度）
-        applyAttributesToItem(equipment);
-        
-        // 消耗一个材料
-        consumeMaterial(player, material);
-        
-        // 设置冷却
-        playerCooldowns.put(player.getUniqueId(), System.currentTimeMillis());
-        
-        return result;
-    }
-    
-    /**
-     * 根据配置的概率确定锻造结果（药水锻造）
-     */
-    private ForgeResult determinePotionForgeResult() {
-        return determinePotionForgeResult(0.0, 0.0);
-    }
-    
-    /**
-     * 根据配置的概率确定锻造结果（药水锻造，带加成）
-     */
-    private ForgeResult determinePotionForgeResult(double successBonus, double failReduction) {
-        return determineForgeResult(
-            configManager.getPotionForgeChance(CHANCE_FAIL_NO_PENALTY),
-            configManager.getPotionForgeChance(CHANCE_EQUIPMENT_DESTROYED),
-            configManager.getPotionForgeChance(CHANCE_DOWNGRADE),
-            configManager.getPotionForgeChance(CHANCE_SUCCESS),
-            successBonus,
-            failReduction
-        );
-    }
-    
-    /**
-     * 根据配置的概率确定锻造结果（合金锻造）
-     */
-    private ForgeResult determineAlloyForgeResult() {
-        return determineAlloyForgeResult(0.0, 0.0);
-    }
-    
-    /**
-     * 根据配置的概率确定锻造结果（合金锻造，带加成）
-     */
-    private ForgeResult determineAlloyForgeResult(double successBonus, double failReduction) {
-        return determineForgeResult(
-            configManager.getAlloyForgeChance(CHANCE_FAIL_NO_PENALTY),
-            configManager.getAlloyForgeChance(CHANCE_EQUIPMENT_DESTROYED),
-            configManager.getAlloyForgeChance(CHANCE_DOWNGRADE),
-            configManager.getAlloyForgeChance(CHANCE_SUCCESS),
-            successBonus,
-            failReduction
-        );
-    }
-    
-    /**
-     * 通用的锻造结果判定方法
-     */
-    private ForgeResult determineForgeResult(double failNoPenalty, double equipmentDestroyed, 
-                                            double downgrade, double success) {
-        return determineForgeResult(failNoPenalty, equipmentDestroyed, downgrade, success, 0.0, 0.0);
-    }
-    
-    /**
-     * 通用的锻造结果判定方法（带加成）
-     */
-    private ForgeResult determineForgeResult(double failNoPenalty, double equipmentDestroyed, 
-                                            double downgrade, double success,
-                                            double successBonus, double failReduction) {
-        // 失败率降低只分配给装备摧毁和降级，无惩罚失败不参与
-        double totalBadFailRate = equipmentDestroyed + downgrade;
-        if (totalBadFailRate > 0) {
-            // 按比例分配失败率降低
-            double destroyRatio = equipmentDestroyed / totalBadFailRate;
-            double downgradeRatio = downgrade / totalBadFailRate;
-            
-            equipmentDestroyed = Math.max(0, equipmentDestroyed - failReduction * destroyRatio);
-            downgrade = Math.max(0, downgrade - failReduction * downgradeRatio);
-        }
-        
-        // 应用成功率加成（分配给成功和极品）
-        double totalFailRate = failNoPenalty + equipmentDestroyed + downgrade;
-        double remaining = 100 - totalFailRate;
-        double bonus = Math.min(successBonus, remaining);
-        
-        // 将加成分配给成功和极品（按原有比例）
-        double successRatio = success / (success + 15); // 15 是极品的基础概率
-        success += bonus * successRatio;
-        // 极品概率自动增加（剩余的加成）
-        
-        double roll = random.nextDouble() * 100;
-        
-        if (roll < failNoPenalty) {
-            return ForgeResult.FAIL_NO_PENALTY;
-        } else if (roll < failNoPenalty + equipmentDestroyed) {
-            return ForgeResult.EQUIPMENT_DESTROYED;
-        } else if (roll < failNoPenalty + equipmentDestroyed + downgrade) {
-            return ForgeResult.DOWNGRADE;
-        } else if (roll < failNoPenalty + equipmentDestroyed + downgrade + success) {
-            return ForgeResult.SUCCESS;
-        } else {
-            return ForgeResult.PERFECT;
-        }
-    }
-    
-    /**
-     * 将锻造结果应用到装备上
-     */
-    private void applyForgeResult(Player player, ItemStack equipment, EquipmentData equipmentData, ForgeResult result) {
-        // 检查药水效果功能是否启用
-        boolean potionEffectsEnabled = potionEffectManager.isPotionEffectsEnabled();
-        
-        switch (result) {
-            case FAIL_NO_PENALTY:
-                // 无惩罚：消耗材料，无变化，锻造次数不增加
-                // 但仍需刷新 Lore 以显示装备属性信息
-                player.sendMessage(result.getFullMessage());
-                updateEquipmentLore(equipment, equipmentData);
-                saveEquipmentData(equipment, equipmentData);
-                break;
-                
-            case EQUIPMENT_DESTROYED:
-                if (!potionEffectsEnabled) {
-                    // 药水效果功能禁用时，直接摧毁装备
-                    player.getInventory().setItemInMainHand(null);
-                    player.sendMessage(ChatColor.RED + "锻造失败！");
-                    player.sendMessage(ChatColor.RED + "装备已损毁！");
-                } else {
-                    // 失败：50%概率摧毁装备，50%概率附加负面药水效果
-                    if (random.nextBoolean()) {
-                        // 50%：摧毁装备
-                        player.getInventory().setItemInMainHand(null);
-                        player.sendMessage(ChatColor.RED + "锻造失败！");
-                        player.sendMessage(ChatColor.RED + "装备已损毁！");
-                    } else {
-                        // 50%：附加负面药水效果
-                        PotionEffectData negativeEffect = potionEffectManager.getRandomNegativeEffect();
-                        if (negativeEffect != null) {
-                            equipmentData.addPotionEffect(negativeEffect);
-                            player.sendMessage(ChatColor.RED + "锻造失败！");
-                            String chineseName = potionEffectManager.getChineseName(negativeEffect.getEffectName());
-                            player.sendMessage(ChatColor.RED + "附加负面效果: " + chineseName);
-                        } else {
-                            // 无法获取负面效果时，摧毁装备
-                            player.getInventory().setItemInMainHand(null);
-                            player.sendMessage(ChatColor.RED + "锻造失败！");
-                            player.sendMessage(ChatColor.RED + "装备已损毁！");
-                        }
-                        updateEquipmentLore(equipment, equipmentData);
-                        saveEquipmentData(equipment, equipmentData);
-                    }
-                }
-                break;
-                
-            case DOWNGRADE:
-                if (!potionEffectsEnabled) {
-                    // 药水效果功能禁用时，直接摧毁装备
-                    player.getInventory().setItemInMainHand(null);
-                    player.sendMessage(ChatColor.YELLOW + "锻造失败 - 装备等级降低！");
-                    player.sendMessage(ChatColor.RED + "装备已损毁！");
-                } else {
-                    // 降级：随机选中一条药水效果降级或删除
-                    applyDowngradeEffect(player, equipment, equipmentData);
-                }
-                break;
-                
-            case SUCCESS:
-                // 增加锻造次数（仅成功/极品计入）
-                equipmentData.incrementForgeCount();
-                
-                if (!potionEffectsEnabled) {
-                    // 药水效果功能禁用时，只做基础锻造
-                    player.sendMessage(result.getFullMessage());
-                    updateEquipmentLore(equipment, equipmentData);
-                    saveEquipmentData(equipment, equipmentData);
-                } else {
-                    // 成功：添加或升级药水效果
-                    applySuccessEffect(player, equipment, equipmentData);
-                }
-                break;
-                
-            case PERFECT:
-                // 增加锻造次数
-                equipmentData.incrementForgeCount();
-                
-                if (!potionEffectsEnabled) {
-                    // 药水效果功能禁用时，只做基础锻造
-                    player.sendMessage(result.getFullMessage());
-                    updateEquipmentLore(equipment, equipmentData);
-                    saveEquipmentData(equipment, equipmentData);
-                } else {
-                    // 极品：添加药水效果或升级两个效果
-                    applyPerfectEffect(player, equipment, equipmentData);
-                }
-                break;
-        }
-    }
-    
-    /**
-     * 应用降级效果
-     */
-    private void applyDowngradeEffect(Player player, ItemStack equipment, EquipmentData equipmentData) {
-        List<PotionEffectData> effects = equipmentData.getPotionEffects();
-        
-        // 如果没有药水效果，直接摧毁装备
-        if (effects.isEmpty()) {
-            player.getInventory().setItemInMainHand(null);
-            player.sendMessage(ChatColor.YELLOW + "锻造失败 - 装备等级降低！");
-            player.sendMessage(ChatColor.RED + "装备已损毁！");
-            return;
-        }
-        
-        // 随机选择一个效果降级
-        PotionEffectData selected = effects.get(random.nextInt(effects.size()));
-        
-        if (selected.getLevel() > 1) {
-            // 2级降到1级
-            selected.decrementLevel();
-            player.sendMessage(ChatColor.YELLOW + "锻造失败 - 装备等级降低！");
-            String chineseName = potionEffectManager.getChineseName(selected.getEffectName());
-            player.sendMessage(ChatColor.GRAY + chineseName + " 降至 " + selected.getLevel() + " 级");
-        } else {
-            // 1级删除效果
-            equipmentData.removePotionEffect(selected);
-            player.sendMessage(ChatColor.YELLOW + "锻造失败 - 装备等级降低！");
-            String chineseName = potionEffectManager.getChineseName(selected.getEffectName());
-            player.sendMessage(ChatColor.GRAY + "移除效果: " + chineseName);
-        }
-        
-        updateEquipmentLore(equipment, equipmentData);
-        saveEquipmentData(equipment, equipmentData);
-    }
-    
-    /**
-     * 应用成功效果
-     */
-    private void applySuccessEffect(Player player, ItemStack equipment, EquipmentData equipmentData) {
-        List<PotionEffectData> effects = equipmentData.getPotionEffects();
-        int maxEffects = potionEffectManager.getMaxEffectsPerItem();
-        
-        // 过滤出普通效果（非特殊效果）
-        List<PotionEffectData> normalEffects = effects.stream()
-            .filter(e -> !e.isSpecial())
-            .toList();
-        
-        if (normalEffects.size() < maxEffects) {
-            // 普通效果还有空位，添加新效果
-            PotionEffectData newEffect = potionEffectManager.getRandomNormalEffect(effects);
-            if (newEffect != null) {
-                equipmentData.addPotionEffect(newEffect);
-                player.sendMessage(ChatColor.GREEN + "锻造成功 - 装备等级提升！");
-                String chineseName = potionEffectManager.getChineseName(newEffect.getEffectName());
-                player.sendMessage(ChatColor.AQUA + "获得效果: " + chineseName + " I");
-            }
-        } else {
-            // 普通效果已满5个，尝试升级
-            if (potionEffectManager.allNormalEffectsAtMax(effects)) {
-                // 所有普通效果都满级，添加特殊效果
-                PotionEffectData specialEffect = potionEffectManager.getRandomSpecialEffect(effects);
-                if (specialEffect != null) {
-                    equipmentData.addPotionEffect(specialEffect);
-                    equipmentData.setHasSpecialEffect(true);
-                    player.sendMessage(ChatColor.GREEN + "锻造成功 - 装备等级提升！");
-                    String chineseName = potionEffectManager.getChineseName(specialEffect.getEffectName());
-                    player.sendMessage(ChatColor.LIGHT_PURPLE + "获得特殊效果: " + chineseName);
-                    player.sendMessage(ChatColor.RED + "该装备已无法继续锻造！");
-                }
-            } else {
-                // 随机选择一个可升级的普通效果
-                List<PotionEffectData> upgradable = effects.stream()
-                    .filter(e -> !e.isSpecial() && potionEffectManager.canUpgradeEffect(e))
-                    .toList();
-                
-                if (!upgradable.isEmpty()) {
-                    PotionEffectData selected = upgradable.get(random.nextInt(upgradable.size()));
-                    selected.incrementLevel();
-                    player.sendMessage(ChatColor.GREEN + "锻造成功 - 装备等级提升！");
-                    String chineseName = potionEffectManager.getChineseName(selected.getEffectName());
-                    player.sendMessage(ChatColor.AQUA + chineseName + " 升至 " + selected.getLevel() + " 级");
-                } else {
-                    // 无法升级，添加特殊效果
-                    PotionEffectData specialEffect = potionEffectManager.getRandomSpecialEffect(effects);
-                    if (specialEffect != null) {
-                        equipmentData.addPotionEffect(specialEffect);
-                        equipmentData.setHasSpecialEffect(true);
-                        player.sendMessage(ChatColor.GREEN + "锻造成功 - 装备等级提升！");
-                        String chineseName = potionEffectManager.getChineseName(specialEffect.getEffectName());
-                        player.sendMessage(ChatColor.LIGHT_PURPLE + "获得特殊效果: " + chineseName);
-                        player.sendMessage(ChatColor.RED + "该装备已无法继续锻造！");
-                    }
-                }
-            }
-        }
-        
-        updateEquipmentLore(equipment, equipmentData);
-        saveEquipmentData(equipment, equipmentData);
-    }
-    
-    /**
-     * 应用极品效果
-     */
-    private void applyPerfectEffect(Player player, ItemStack equipment, EquipmentData equipmentData) {
-        List<PotionEffectData> effects = equipmentData.getPotionEffects();
-        int maxEffects = potionEffectManager.getMaxEffectsPerItem();
-        
-        // 过滤出普通效果（非特殊效果）
-        List<PotionEffectData> normalEffects = effects.stream()
-            .filter(e -> !e.isSpecial())
-            .toList();
-        
-        if (normalEffects.size() < maxEffects) {
-            // 普通效果还有空位，添加新效果
-            PotionEffectData newEffect = potionEffectManager.getRandomNormalEffect(effects);
-            if (newEffect != null) {
-                equipmentData.addPotionEffect(newEffect);
-                player.sendMessage(ChatColor.AQUA + "完美锻造 - 获得极品属性！");
-                String chineseName = potionEffectManager.getChineseName(newEffect.getEffectName());
-                player.sendMessage(ChatColor.AQUA + "获得效果: " + chineseName + " I");
-            }
-        } else {
-            // 普通效果已满5个，尝试升级两个
-            List<PotionEffectData> upgradable = new java.util.ArrayList<>(effects.stream()
-                .filter(e -> !e.isSpecial() && potionEffectManager.canUpgradeEffect(e))
-                .toList());
-            
-            int upgradeCount = 0;
-            if (upgradable.size() >= 2) {
-                // 随机选择两个升级
-                java.util.Collections.shuffle(upgradable);
-                upgradable.get(0).incrementLevel();
-                upgradable.get(1).incrementLevel();
-                upgradeCount = 2;
-            } else if (upgradable.size() == 1) {
-                upgradable.get(0).incrementLevel();
-                upgradeCount = 1;
-            }
-            
-            if (upgradeCount > 0) {
-                player.sendMessage(ChatColor.AQUA + "完美锻造 - 获得极品属性！");
-                player.sendMessage(ChatColor.AQUA + "升级了 " + upgradeCount + " 个效果");
-            } else if (potionEffectManager.allNormalEffectsAtMax(effects)) {
-                // 所有普通效果满级，添加2个特殊效果
-                int specialCount = 0;
-                for (int i = 0; i < 2; i++) {
-                    PotionEffectData specialEffect = potionEffectManager.getRandomSpecialEffect(effects);
-                    if (specialEffect != null) {
-                        equipmentData.addPotionEffect(specialEffect);
-                        specialCount++;
-                    }
-                }
-                
-                if (specialCount > 0) {
-                    equipmentData.setHasSpecialEffect(true);
-                    player.sendMessage(ChatColor.AQUA + "完美锻造 - 获得极品属性！");
-                    player.sendMessage(ChatColor.LIGHT_PURPLE + "获得 " + specialCount + " 个特殊效果");
-                    player.sendMessage(ChatColor.RED + "该装备已无法继续锻造！");
-                }
-            }
-        }
-        
-        updateEquipmentLore(equipment, equipmentData);
-        saveEquipmentData(equipment, equipmentData);
-    }
-    
-    /**
-     * 检查材料是否有效用于锻造
-     */
-    private boolean isValidForgeMaterial(ItemStack material) {
-        if (!potionForgeConfig.isEnabled()) {
-            return false;
-        }
-        
-        // 检查材质类型
-        String potionMaterial = potionForgeConfig.getMaterialType();
-        if (!material.getType().name().equals(potionMaterial) &&
-            !material.getType().name().contains("_ORE") &&
-            material.getType() != Material.RAW_IRON &&
-            material.getType() != Material.RAW_GOLD &&
-            material.getType() != Material.RAW_COPPER) {
-            return false;
-        }
-        
-        // 如果是主要材料（下界之星），检查自定义名称
-        if (material.getType().name().equals(potionMaterial)) {
-            String customName = potionForgeConfig.getCustomName();
-            if (customName != null && !customName.isEmpty()) {
-                ItemMeta meta = material.getItemMeta();
-                if (meta == null || !meta.hasDisplayName()) {
-                    return false;
-                }
-                // 比较显示名称（支持颜色代码）
-                return meta.getDisplayName().equals(customName);
-            }
-        }
-        
-        return true;
-    }
-    
-    /**
-     * 从副手消耗一个材料
-     */
-    private void consumeMaterial(Player player, ItemStack material) {
-        if (material.getAmount() > 1) {
-            material.setAmount(material.getAmount() - 1);
-        } else {
-            player.getInventory().setItemInOffHand(null);
-        }
-    }
+
     
     /**
      * 从 NBT 获取装备数据
@@ -916,7 +414,9 @@ public class ForgeManager {
                        .append(":")
                        .append(effect.getLevel())
                        .append(":")
-                       .append(effect.isSpecial());
+                       .append(effect.isSpecial())
+                       .append(":")
+                       .append(effect.isNegative());
             if (i < effects.size() - 1) {
                 dataBuilder.append(";");
             }
@@ -1064,113 +564,9 @@ public class ForgeManager {
         }
     }
     
-    /**
-     * 执行合金锻造（属性修改）
-     */
-    private ForgeResult executeAlloyForge(Player player, ItemStack equipment, ItemStack material) {
-        return executeAlloyForge(player, equipment, material, 0.0, 0.0);
-    }
+
     
-    private ForgeResult executeAlloyForge(Player player, ItemStack equipment, ItemStack material, 
-                                         double successBonus, double failReduction) {
-        // 检查装备类型是否支持合金锻造
-        EquipmentType equipType = getEquipmentType(equipment);
-        if (equipType == EquipmentType.OTHER) {
-            player.sendMessage(ChatColor.RED + "该物品无法进行合金锻造！");
-            player.sendMessage(ChatColor.GRAY + "仅支持工具、武器、盔甲和鞘翅");
-            return null;
-        }
-        
-        // 获取或创建装备数据
-        EquipmentData equipmentData = getEquipmentData(equipment);
-        
-        // 根据合金锻造概率确定结果（带加成）
-        ForgeResult result = determineAlloyForgeResult(successBonus, failReduction);
-        
-        // 应用合金锻造结果
-        applyAlloyForgeResult(player, equipment, equipmentData, result);
-        
-        // 消耗一个材料
-        consumeMaterial(player, material);
-        
-        // 设置冷却
-        playerCooldowns.put(player.getUniqueId(), System.currentTimeMillis());
-        
-        return result;
-    }
-    
-    /**
-     * 检查是否为合金材料（下界合金锭）
-     */
-    private boolean isAlloyMaterial(ItemStack material) {
-        if (!alloyForgeConfig.isEnabled()) {
-            return false;
-        }
-        
-        // 检查材质类型
-        String alloyMaterial = alloyForgeConfig.getMaterialType();
-        if (!material.getType().name().equals(alloyMaterial)) {
-            return false;
-        }
-        
-        // 如果配置了自定义名称，则检查显示名称
-        String customName = alloyForgeConfig.getCustomName();
-        if (customName != null && !customName.isEmpty()) {
-            ItemMeta meta = material.getItemMeta();
-            if (meta == null || !meta.hasDisplayName()) {
-                return false;
-            }
-            // 比较显示名称（支持颜色代码）
-            return meta.getDisplayName().equals(customName);
-        }
-        
-        return true;
-    }
-    
-    /**
-     * 应用合金锻造结果
-     */
-    private void applyAlloyForgeResult(Player player, ItemStack equipment, EquipmentData equipmentData, ForgeResult result) {
-        EquipmentAttributes attributes = equipmentData.getAttributes();
-        
-        // 判断装备类型
-        EquipmentType equipType = getEquipmentType(equipment);
-        
-        switch (result) {
-            case FAIL_NO_PENALTY:
-                // 无惩罚：不修改属性
-                player.sendMessage(result.getFullMessage());
-                player.sendMessage(ChatColor.GRAY + "装备属性未改变");
-                updateEquipmentLore(equipment, equipmentData);
-                applyAttributesToItem(equipment, attributes);
-                saveEquipmentData(equipment, equipmentData);
-                break;
-                
-            case EQUIPMENT_DESTROYED:
-                // 失败：摧毁装备
-                player.getInventory().setItemInMainHand(null);
-                player.sendMessage(result.getFullMessage());
-                player.sendMessage(ChatColor.RED + "装备已损毁！");
-                break;
-                
-            case DOWNGRADE:
-                // 降级：减少属性值
-                applyAlloyDowngrade(player, equipment, equipmentData, attributes, equipType);
-                break;
-                
-            case SUCCESS:
-                // 成功：增加属性值（计入锻造次数）
-                equipmentData.incrementForgeCount();
-                applyAlloySuccess(player, equipment, equipmentData, attributes, equipType);
-                break;
-                
-            case PERFECT:
-                // 极品：大幅增加属性值（计入锻造次数）
-                equipmentData.incrementForgeCount();
-                applyAlloyPerfect(player, equipment, equipmentData, attributes, equipType);
-                break;
-        }
-    }
+
     
     /**
      * 获取装备类型
@@ -1432,24 +828,7 @@ public class ForgeManager {
         
         Material material = equipment.getType();
         
-        // 获取当前已有修饰符
-        Multimap<Attribute, AttributeModifier> allModifiers = meta.getAttributeModifiers();
-        if (allModifiers == null) {
-            allModifiers = ArrayListMultimap.create();
-        } else {
-            allModifiers = ArrayListMultimap.create(allModifiers);
-        }
-        
-        // 移除所有旧的 yinwu 自定义修饰符
-        List<Map.Entry<Attribute, AttributeModifier>> toRemove = new ArrayList<>();
-        for (Map.Entry<Attribute, AttributeModifier> entry : allModifiers.entries()) {
-            if ("yinwu".equals(entry.getValue().getKey().getNamespace())) {
-                toRemove.add(entry);
-            }
-        }
-        for (Map.Entry<Attribute, AttributeModifier> entry : toRemove) {
-            allModifiers.remove(entry.getKey(), entry.getValue());
-        }
+        Multimap<Attribute, AttributeModifier> allModifiers = AttributeUtil.removeYinwuModifiers(meta);
         
         // ===== 始终设置武器伤害/攻速（基础值 + 锻造加成，如无加成为0）=====
         // ATTACK_DAMAGE：修饰符值 = 武器基础伤害贡献 + 锻造加成
@@ -1479,8 +858,8 @@ public class ForgeManager {
         }
         
         // ===== 盔甲：始终设置总盔甲值/韧性（基础值 + 锻造加成，如无加成为0）=====
-        if (isArmorType(material)) {
-            EquipmentSlotGroup slotGroup = getArmorSlotGroup(material);
+        if (AttributeUtil.isArmorType(material)) {
+            EquipmentSlotGroup slotGroup = AttributeUtil.getArmorSlotGroup(material);
             Double baseArmor = ARMOR_BASE_VALUES.get(material);
             if (baseArmor == null) baseArmor = 0.0;
             double forgeArmor = (attributes != null && attributes.getArmorValue() != null) ? attributes.getArmorValue() : 0;
@@ -1532,7 +911,7 @@ public class ForgeManager {
         // 处理耐久度
         if (attributes != null && attributes.getMaxDurability() != null && attributes.getMaxDurability() != 0) {
             if (meta instanceof Damageable damageable) {
-                int baseMaxDurability = getDefaultMaxDurability(equipment);
+                int baseMaxDurability = AttributeUtil.getDefaultMaxDurability(equipment);
                 if (baseMaxDurability > 0) {
                     damageable.setMaxDamage(baseMaxDurability + (attributes.getMaxDurability() * 150));
                     damageable.setDamage(0);
@@ -1544,123 +923,7 @@ public class ForgeManager {
     }
     
 
-    /**
-     * 获取武器的默认基础伤害值（不包括空手伤害）
-     * @param material 物品材质
-     * @return 默认基础伤害值
-     */
-    private double getDefaultAttackDamage(Material material) {
-        return switch (material) {
-            case NETHERITE_SWORD -> 8.0;
-            case DIAMOND_SWORD -> 7.0;
-            case IRON_SWORD -> 6.0;
-            case STONE_SWORD -> 5.0;
-            case WOODEN_SWORD -> 4.0;
-            case GOLDEN_SWORD -> 4.0;
-            case NETHERITE_AXE -> 10.0;
-            case DIAMOND_AXE -> 9.0;
-            case IRON_AXE -> 7.0;
-            case STONE_AXE -> 6.0;
-            case WOODEN_AXE -> 5.0;
-            case GOLDEN_AXE -> 5.0;
-            case TRIDENT -> 9.0;
-            default -> 1.0;
-        };
-    }
-    
-    /**
-     * 获取物品类型的默认最大耐久值
-     * @param item 物品栈
-     * @return 默认最大耐久值
-     */
-    private int getDefaultMaxDurability(ItemStack item) {
-        Material material = item.getType();
-        ItemStack defaultItem = new ItemStack(material);
-        ItemMeta defaultMeta = defaultItem.getItemMeta();
-        
-        if (defaultMeta instanceof Damageable defaultDamageable && defaultDamageable.hasMaxDamage()) {
-            return defaultDamageable.getMaxDamage();
-        }
-        
-        return switch (material) {
-            case NETHERITE_PICKAXE, NETHERITE_AXE, NETHERITE_SWORD, NETHERITE_SHOVEL, NETHERITE_HOE,
-                 NETHERITE_HELMET, NETHERITE_CHESTPLATE, NETHERITE_LEGGINGS, NETHERITE_BOOTS -> 2031;
-            case DIAMOND_PICKAXE, DIAMOND_AXE, DIAMOND_SWORD, DIAMOND_SHOVEL, DIAMOND_HOE,
-                 DIAMOND_HELMET, DIAMOND_CHESTPLATE, DIAMOND_LEGGINGS, DIAMOND_BOOTS -> 1561;
-            case IRON_PICKAXE, IRON_AXE, IRON_SWORD, IRON_SHOVEL, IRON_HOE,
-                 IRON_HELMET, IRON_CHESTPLATE, IRON_LEGGINGS, IRON_BOOTS -> 250;
-            case STONE_PICKAXE, STONE_AXE, STONE_SWORD, STONE_SHOVEL, STONE_HOE -> 131;
-            case WOODEN_PICKAXE, WOODEN_AXE, WOODEN_SWORD, WOODEN_SHOVEL, WOODEN_HOE,
-                 LEATHER_HELMET, LEATHER_CHESTPLATE, LEATHER_LEGGINGS, LEATHER_BOOTS -> 60;
-            case GOLDEN_PICKAXE, GOLDEN_AXE, GOLDEN_SWORD, GOLDEN_SHOVEL, GOLDEN_HOE,
-                 GOLDEN_HELMET, GOLDEN_CHESTPLATE, GOLDEN_LEGGINGS, GOLDEN_BOOTS -> 33;
-            default -> 1561;
-        };
-    }
-    
-    /**
-     * 判断是否为盔甲类型
-     */
-    private boolean isArmorType(Material material) {
-        if (material == Material.ELYTRA) return true;
-        String name = material.name();
-        return name.endsWith("_HELMET") || name.endsWith("_CHESTPLATE") || 
-               name.endsWith("_LEGGINGS") || name.endsWith("_BOOTS");
-    }
-    
-    /**
-     * 从全新同类型物品读取默认基础属性值
-     */
-    private double getBaseAttributeValue(Material material, Attribute attribute) {
-        ItemStack defaultItem = new ItemStack(material);
-        ItemMeta defaultMeta = defaultItem.getItemMeta();
-        if (defaultMeta != null) {
-            Collection<AttributeModifier> mods = defaultMeta.getAttributeModifiers(attribute);
-            if (mods != null) {
-                double total = 0;
-                for (AttributeModifier mod : mods) {
-                    total += mod.getAmount();
-                }
-                return total;
-            }
-        }
-        return 0;
-    }
-    
-    /**
-     * 根据盔甲材质返回对应的 EquipmentSlotGroup
-     */
-    public static EquipmentSlotGroup getArmorSlotGroup(Material material) {
-        String name = material.name();
-        if (name.endsWith("_HELMET") || material == Material.TURTLE_HELMET) return EquipmentSlotGroup.HEAD;
-        if (name.endsWith("_CHESTPLATE")) return EquipmentSlotGroup.CHEST;
-        if (name.endsWith("_LEGGINGS")) return EquipmentSlotGroup.LEGS;
-        if (name.endsWith("_BOOTS")) return EquipmentSlotGroup.FEET;
-        if (material == Material.ELYTRA) return EquipmentSlotGroup.CHEST;
-        return EquipmentSlotGroup.ANY;
-    }
-    
-    /**
-     * 格式化 double 值（去掉无意义的小数零）
-     */
-    private String formatDouble(double value) {
-        if (value == (long) value) {
-            return String.valueOf((long) value);
-        }
-        return String.format("%.1f", value);
-    }
-    
-    /**
-     * 根据盔甲部位返回对应的原版显示文本
-     */
-    private String getArmorSlotDisplay(Material material) {
-        String name = material.name();
-        if (name.endsWith("_HELMET")) return "戴在头上时";
-        if (name.endsWith("_CHESTPLATE")) return "穿在身上时";
-        if (name.endsWith("_LEGGINGS")) return "穿在腿上时";
-        if (name.endsWith("_BOOTS")) return "穿在脚上时";
-        return null;
-    }
+
 
     /**
      * 执行分类锻造（GUI锻造入口，根据浓缩材料的分类）

@@ -13,29 +13,24 @@ import org.bukkit.attribute.AttributeModifier;
 import org.bukkit.block.Block;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
-import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.block.Action;
-import org.bukkit.event.entity.EntityPickupItemEvent;
 import org.bukkit.event.inventory.InventoryClickEvent;
+import org.bukkit.event.inventory.InventoryCloseEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
-import org.bukkit.event.player.PlayerItemBreakEvent;
 import org.bukkit.event.player.PlayerItemHeldEvent;
 import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.inventory.EquipmentSlot;
 import org.bukkit.inventory.EquipmentSlotGroup;
 import org.bukkit.inventory.ItemStack;
-import org.bukkit.inventory.meta.Damageable;
 import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.persistence.PersistentDataType;
 import org.bukkit.potion.PotionEffect;
 import org.bukkit.potion.PotionEffectType;
 
-import com.google.common.collect.ArrayListMultimap;
 import com.google.common.collect.Multimap;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -178,6 +173,17 @@ public class EventListener implements Listener {
     }
     
     /**
+     * 监听关闭库存事件 — 关闭锻造GUI时返还槽位中的物品
+     */
+    @EventHandler
+    public void onInventoryClose(InventoryCloseEvent event) {
+        if (!(event.getPlayer() instanceof Player player)) return;
+        if (forgeGUI != null) {
+            forgeGUI.closeGUI(player);
+        }
+    }
+    
+    /**
      * 监听库存点击事件（装备穿戴/脱下 + GUI锻造点击）
      */
     @EventHandler
@@ -217,16 +223,6 @@ public class EventListener implements Listener {
             }
             // 如果不是完整的祭坛，不取消事件，允许打开原版锻造台界面
         }
-    }
-    
-    /**
-     * 监听物品损坏事件
-     */
-    @EventHandler(priority = EventPriority.HIGH)
-    public void onItemBreak(PlayerItemBreakEvent event) {
-        ItemStack brokenItem = event.getBrokenItem();
-        // 物品损坏时，如果有药水效果需要移除
-        // 注意：这里只是事件通知，实际效果移除会在装备槽变化时处理
     }
     
     /**
@@ -409,24 +405,7 @@ public class EventListener implements Listener {
         
         Material material = item.getType();
         
-        // 获取当前已有修饰符
-        Multimap<Attribute, AttributeModifier> allModifiers = meta.getAttributeModifiers();
-        if (allModifiers == null) {
-            allModifiers = ArrayListMultimap.create();
-        } else {
-            allModifiers = ArrayListMultimap.create(allModifiers);
-        }
-        
-        // 移除所有旧的 yinwu 自定义修饰符
-        List<Map.Entry<Attribute, AttributeModifier>> toRemove = new ArrayList<>();
-        for (Map.Entry<Attribute, AttributeModifier> entry : allModifiers.entries()) {
-            if ("yinwu".equals(entry.getValue().getKey().getNamespace())) {
-                toRemove.add(entry);
-            }
-        }
-        for (Map.Entry<Attribute, AttributeModifier> entry : toRemove) {
-            allModifiers.remove(entry.getKey(), entry.getValue());
-        }
+        Multimap<Attribute, AttributeModifier> allModifiers = AttributeUtil.removeYinwuModifiers(meta);
         
         // ===== 武器伤害/攻速：硬编码基础值 + 锻造加成 =====
         if (attributes.getBaseDamage() != null && attributes.getBaseDamage() != 0) {
@@ -467,8 +446,8 @@ public class EventListener implements Listener {
         }
         
         // ===== 盔甲：始终设置总盔甲值/韧性（基础值 + 锻造加成）=====
-        if (isArmorType(material)) {
-            EquipmentSlotGroup slotGroup = ForgeManager.getArmorSlotGroup(material);
+        if (AttributeUtil.isArmorType(material)) {
+            EquipmentSlotGroup slotGroup = AttributeUtil.getArmorSlotGroup(material);
             Double baseArmor = ForgeManager.ARMOR_BASE_VALUES.get(material);
             if (baseArmor == null) baseArmor = 0.0;
             double forgeArmor = (attributes.getArmorValue() != null ? attributes.getArmorValue() : 0);
@@ -506,137 +485,13 @@ public class EventListener implements Listener {
         // 处理最大耐久度
         if (attributes.getMaxDurability() != null && attributes.getMaxDurability() != 0) {
             try {
-                if (meta instanceof Damageable damageable) {
-                    applyMaxDurability(item, damageable, attributes.getMaxDurability());
-                }
+                AttributeUtil.applyMaxDurability(item, attributes.getMaxDurability());
             } catch (Exception e) {
                 plugin.getLogger().warning("[属性应用] 无法应用耐久度修改: " + e.getMessage());
             }
         }
         
         item.setItemMeta(meta);
-    }
-    
-    /**
-     * 添加属性修饰符 (兼容 1.21+ API)
-     */
-    private void addAttributeModifier(ItemMeta meta, EquipmentSlot slot, Attribute attribute, NamespacedKey key, Integer value) {
-        if (value == null || value == 0) {
-            plugin.getLogger().fine("属性值为空或0，跳过: " + key);
-            return;
-        }
-        
-        try {
-            // 先移除可能存在的旧修饰符
-            Collection<AttributeModifier> existingModifiers = meta.getAttributeModifiers(attribute);
-            if (existingModifiers != null) {
-                for (AttributeModifier modifier : existingModifiers) {
-                    if (modifier.getKey().equals(key)) {
-                        meta.removeAttributeModifier(attribute, modifier);
-                        plugin.getLogger().fine("已移除旧的属性修饰符: " + key);
-                        break;
-                    }
-                }
-            }
-            
-            // 添加新的修饰符 - 1.21+ 使用 NamespacedKey 和 EquipmentSlotGroup
-            EquipmentSlotGroup slotGroup = convertToSlotGroup(slot);
-            AttributeModifier modifier = new AttributeModifier(
-                key,
-                value.doubleValue(),
-                AttributeModifier.Operation.ADD_NUMBER,
-                slotGroup
-            );
-            meta.addAttributeModifier(attribute, modifier);
-            plugin.getLogger().fine("成功添加属性修饰符: " + key + " = " + value + " (槽位: " + slot + ")");
-        } catch (Exception e) {
-            plugin.getLogger().warning("添加属性修饰符失败: " + key + " - " + e.getMessage());
-        }
-    }
-    
-    /**
-     * 将 EquipmentSlot 转换为 EquipmentSlotGroup
-     */
-    private EquipmentSlotGroup convertToSlotGroup(EquipmentSlot slot) {
-        return switch (slot) {
-            case HAND -> EquipmentSlotGroup.HAND;
-            case OFF_HAND -> EquipmentSlotGroup.OFFHAND;
-            case HEAD -> EquipmentSlotGroup.HEAD;
-            case CHEST -> EquipmentSlotGroup.CHEST;
-            case LEGS -> EquipmentSlotGroup.LEGS;
-            case FEET -> EquipmentSlotGroup.FEET;
-            default -> EquipmentSlotGroup.ANY;
-        };
-    }
-    
-    /**
-     * 应用最大耐久度修改
-     * @param item 物品栈
-     * @param damageable 可损坏的物品元数据
-     * @param durabilityBonus 耐久加成值（每+1增加150点耐久）
-     */
-    private void applyMaxDurability(ItemStack item, Damageable damageable, int durabilityBonus) {
-        // 获取物品类型的原始基础耐久值，而不是当前物品的耐久值
-        int baseMaxDurability = getDefaultMaxDurability(item);
-        
-        if (baseMaxDurability <= 0) {
-            plugin.getLogger().warning("[属性应用] 无法获取物品的默认耐久值，跳过耐久修改");
-            return;
-        }
-        
-        // 检查物品是否有最大耐久属性（避免不可损坏物品的异常）
-        if (!damageable.hasMaxDamage()) {
-            plugin.getLogger().warning("[属性应用] 物品没有最大耐久属性，跳过耐久修改");
-            return;
-        }
-        
-        // 计算新的最大耐久：基础耐久 + (加成值 * 150)
-        int newMaxDurability = baseMaxDurability + (durabilityBonus * 150);
-        
-        // 获取当前已损失的耐久
-        int currentDamage = damageable.getDamage();
-        
-        if (configManager.getBoolean("debug")) {
-            plugin.getLogger().info("[属性应用] 应用耐久修改: 基础=" + baseMaxDurability + ", 加成=" + durabilityBonus 
-                + ", 新最大耐久=" + newMaxDurability + ", 当前损失=" + currentDamage);
-        }
-        
-        // 使用 setMaxDamage 直接修改（必须在 setItemMeta 之前调用）
-        damageable.setMaxDamage(newMaxDurability);
-        // 重置为满耐久
-        damageable.setDamage(0);
-    }
-    
-    /**
-     * 获取物品类型的默认最大耐久值
-     * @param item 物品栈
-     * @return 默认最大耐久值
-     */
-    private int getDefaultMaxDurability(ItemStack item) {
-        // 创建一个新的相同类型的物品来获取默认耐久值
-        Material material = item.getType();
-        ItemStack defaultItem = new ItemStack(material);
-        ItemMeta defaultMeta = defaultItem.getItemMeta();
-        
-        if (defaultMeta instanceof Damageable defaultDamageable && defaultDamageable.hasMaxDamage()) {
-            return defaultDamageable.getMaxDamage();
-        }
-        
-        // 根据物品类型返回默认值作为后备
-        return switch (material) {
-            case NETHERITE_PICKAXE, NETHERITE_AXE, NETHERITE_SWORD, NETHERITE_SHOVEL, NETHERITE_HOE,
-                 NETHERITE_HELMET, NETHERITE_CHESTPLATE, NETHERITE_LEGGINGS, NETHERITE_BOOTS -> 2031;
-            case DIAMOND_PICKAXE, DIAMOND_AXE, DIAMOND_SWORD, DIAMOND_SHOVEL, DIAMOND_HOE,
-                 DIAMOND_HELMET, DIAMOND_CHESTPLATE, DIAMOND_LEGGINGS, DIAMOND_BOOTS -> 1561;
-            case IRON_PICKAXE, IRON_AXE, IRON_SWORD, IRON_SHOVEL, IRON_HOE,
-                 IRON_HELMET, IRON_CHESTPLATE, IRON_LEGGINGS, IRON_BOOTS -> 250;
-            case STONE_PICKAXE, STONE_AXE, STONE_SWORD, STONE_SHOVEL, STONE_HOE -> 131;
-            case WOODEN_PICKAXE, WOODEN_AXE, WOODEN_SWORD, WOODEN_SHOVEL, WOODEN_HOE,
-                 LEATHER_HELMET, LEATHER_CHESTPLATE, LEATHER_LEGGINGS, LEATHER_BOOTS -> 60;
-            case GOLDEN_PICKAXE, GOLDEN_AXE, GOLDEN_SWORD, GOLDEN_SHOVEL, GOLDEN_HOE,
-                 GOLDEN_HELMET, GOLDEN_CHESTPLATE, GOLDEN_LEGGINGS, GOLDEN_BOOTS -> 33;
-            default -> 1561;
-        };
     }
     
     /**
@@ -686,15 +541,6 @@ public class EventListener implements Listener {
     }
     
     /**
-     * 判断是否为盔甲类型
-     */
-    private boolean isArmorType(Material material) {
-        String name = material.name();
-        return name.endsWith("_HELMET") || name.endsWith("_CHESTPLATE") || 
-               name.endsWith("_LEGGINGS") || name.endsWith("_BOOTS") || material == Material.ELYTRA;
-    }
-    
-    /**
      * 判断物品是否在正确的装备槽位中（盔甲在手持槽位不应触发效果）
      */
     private boolean isItemInCorrectSlot(ItemStack item, EquipmentSlot slot) {
@@ -702,8 +548,7 @@ public class EventListener implements Listener {
         Material material = item.getType();
         String name = material.name();
         
-        // 非盔甲类物品（武器、工具等）在任何槽位都有效
-        if (!isArmorType(material)) return true;
+        if (!AttributeUtil.isArmorType(material)) return true;
         
         // 盔甲类需要匹配正确槽位
         if (name.endsWith("_HELMET") || material == Material.TURTLE_HELMET) return slot == EquipmentSlot.HEAD;
@@ -714,22 +559,4 @@ public class EventListener implements Listener {
         return true;
     }
     
-    /**
-     * 从全新同类型物品读取默认基础属性值
-     */
-    private double getBaseAttributeValue(Material material, Attribute attribute) {
-        ItemStack defaultItem = new ItemStack(material);
-        ItemMeta defaultMeta = defaultItem.getItemMeta();
-        if (defaultMeta != null) {
-            Collection<AttributeModifier> mods = defaultMeta.getAttributeModifiers(attribute);
-            if (mods != null) {
-                double total = 0;
-                for (AttributeModifier mod : mods) {
-                    total += mod.getAmount();
-                }
-                return total;
-            }
-        }
-        return 0;
-    }
 }

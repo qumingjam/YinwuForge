@@ -101,46 +101,43 @@ public class ConfigManager {
     }
     
     public int getInt(String key) {
-        Object value = settings.get(key);
-        if (value == null) {
-            return config.getInt(key, 10);
+        if (settings.containsKey(key)) {
+            return (Integer) settings.get(key);
         }
-        return (Integer) value;
+        return config.getInt(key, 10);
     }
-    
+
     public double getDouble(String key) {
-        Object value = settings.get(key);
-        if (value == null) {
-            return config.getDouble(key, 1.0);
+        if (settings.containsKey(key)) {
+            return (Double) settings.get(key);
         }
-        return (Double) value;
+        return config.getDouble(key, 1.0);
     }
-    
+
     public String getString(String key) {
-        Object value = settings.get(key);
-        if (value == null) {
-            return config.getString(key, "");
+        if (settings.containsKey(key)) {
+            Object value = settings.get(key);
+            return value != null ? value.toString() : "";
         }
-        return (String) value;
+        return config.getString(key, "");
     }
-    
+
     public boolean getBoolean(String key) {
-        Object value = settings.get(key);
-        if (value == null) {
-            return config.getBoolean(key, true);
+        if (settings.containsKey(key)) {
+            return (Boolean) settings.get(key);
         }
-        return (Boolean) value;
+        return config.getBoolean(key, true);
     }
-    
+
     public long getLong(String key) {
-        Object value = settings.get(key);
-        if (value == null) {
-            return config.getLong(key, 2000L);
+        if (settings.containsKey(key)) {
+            Object value = settings.get(key);
+            if (value instanceof Integer) {
+                return ((Integer) value).longValue();
+            }
+            return (Long) value;
         }
-        if (value instanceof Integer) {
-            return ((Integer) value).longValue();
-        }
-        return (Long) value;
+        return config.getLong(key, 2000L);
     }
     
     public FileConfiguration getRawConfig() {

@@ -23,7 +23,7 @@ public final class YinwuForgePlugin extends JavaPlugin {
         potionForgeConfig = new PotionForgeConfig(this, configManager);
         alloyForgeConfig = new AlloyForgeConfig(this, configManager);
         materialConfig = new MaterialConfig(this, configManager);
-        forgeManager = new ForgeManager(this, configManager, alloyForgeConfig, potionForgeConfig, potionEffectManager);
+        forgeManager = new ForgeManager(this, configManager, alloyForgeConfig, potionEffectManager);
         altarManager = new AltarManager(this, configManager, forgeManager);
         forgeGUI = new ForgeGUI(this, materialConfig, forgeManager, altarManager, configManager);
         altarManager.setForgeGUI(forgeGUI);
@@ -46,6 +46,9 @@ public final class YinwuForgePlugin extends JavaPlugin {
 
     @Override
     public void onDisable() {
+        if (forgeGUI != null) {
+            forgeGUI.closeAllGUIs();
+        }
         if (configManager.getBoolean("debug")) {
             getLogger().info("YinwuForge 已禁用。");
         }

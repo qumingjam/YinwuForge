@@ -11,6 +11,7 @@ import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
 
+import org.bukkit.event.inventory.ClickType;
 import java.util.*;
 
 public class ForgeGUI {
@@ -24,6 +25,15 @@ public class ForgeGUI {
 
     private final Map<UUID, Inventory> openGUIs = new HashMap<>();
 
+    private final List<ItemStack> equipPreviews = new ArrayList<>();
+    private final List<ItemStack> corePreviews = new ArrayList<>();
+    private final List<ItemStack> adjusterPreviews = new ArrayList<>();
+    private int rotationIndex;
+
+    private static final int PREVIEW_SLOT_EQUIP = 9;
+    private static final int PREVIEW_SLOT_CORE = 10;
+    private static final int PREVIEW_SLOT_ADJUSTER = 11;
+
     public ForgeGUI(YinwuForgePlugin plugin, MaterialConfig materialConfig,
                     ForgeManager forgeManager, AltarManager altarManager,
                     ConfigManager configManager) {
@@ -32,6 +42,91 @@ public class ForgeGUI {
         this.forgeManager = forgeManager;
         this.altarManager = altarManager;
         this.configManager = configManager;
+        buildPreviewLists();
+        startPreviewRotation();
+    }
+
+    private void buildPreviewLists() {
+        equipPreviews.clear();
+        for (Material mat : new Material[]{
+            Material.WOODEN_SWORD, Material.STONE_SWORD, Material.IRON_SWORD,
+            Material.GOLDEN_SWORD, Material.DIAMOND_SWORD, Material.NETHERITE_SWORD,
+            Material.WOODEN_PICKAXE, Material.STONE_PICKAXE, Material.IRON_PICKAXE,
+            Material.GOLDEN_PICKAXE, Material.DIAMOND_PICKAXE, Material.NETHERITE_PICKAXE,
+            Material.WOODEN_AXE, Material.STONE_AXE, Material.IRON_AXE,
+            Material.GOLDEN_AXE, Material.DIAMOND_AXE, Material.NETHERITE_AXE,
+            Material.WOODEN_SHOVEL, Material.STONE_SHOVEL, Material.IRON_SHOVEL,
+            Material.GOLDEN_SHOVEL, Material.DIAMOND_SHOVEL, Material.NETHERITE_SHOVEL,
+            Material.WOODEN_HOE, Material.STONE_HOE, Material.IRON_HOE,
+            Material.GOLDEN_HOE, Material.DIAMOND_HOE, Material.NETHERITE_HOE,
+            Material.LEATHER_HELMET, Material.CHAINMAIL_HELMET, Material.IRON_HELMET,
+            Material.GOLDEN_HELMET, Material.DIAMOND_HELMET, Material.NETHERITE_HELMET,
+            Material.LEATHER_CHESTPLATE, Material.CHAINMAIL_CHESTPLATE, Material.IRON_CHESTPLATE,
+            Material.GOLDEN_CHESTPLATE, Material.DIAMOND_CHESTPLATE, Material.NETHERITE_CHESTPLATE,
+            Material.LEATHER_LEGGINGS, Material.CHAINMAIL_LEGGINGS, Material.IRON_LEGGINGS,
+            Material.GOLDEN_LEGGINGS, Material.DIAMOND_LEGGINGS, Material.NETHERITE_LEGGINGS,
+            Material.LEATHER_BOOTS, Material.CHAINMAIL_BOOTS, Material.IRON_BOOTS,
+            Material.GOLDEN_BOOTS, Material.DIAMOND_BOOTS, Material.NETHERITE_BOOTS,
+            Material.ELYTRA, Material.TRIDENT, Material.MACE,
+            Material.BOW, Material.CROSSBOW
+        }) {
+            ItemStack item = new ItemStack(mat);
+            equipPreviews.add(item);
+        }
+
+        corePreviews.clear();
+        for (MaterialConfig.ConcentratedMat cm : materialConfig.getAllConcentrated()) {
+            ItemStack sample = cm.createItem(1);
+            if (materialConfig.isStrengthMaterial(sample)) {
+                corePreviews.add(sample);
+            }
+        }
+
+        adjusterPreviews.clear();
+        for (MaterialConfig.ConcentratedMat cm : materialConfig.getAllConcentrated()) {
+            ItemStack sample = cm.createItem(1);
+            if (materialConfig.isAdjusterMaterial(sample)) {
+                adjusterPreviews.add(sample);
+            }
+        }
+    }
+
+    private void setPreviewItem(Inventory inv, int slot, List<ItemStack> previews) {
+        if (previews.isEmpty()) return;
+        int idx = (rotationIndex + slot * 7) % previews.size();
+        inv.setItem(slot, previews.get(idx).clone());
+    }
+
+    private void refreshPlayerPreview(Player player) {
+        rotationIndex++;
+        Inventory inv = openGUIs.get(player.getUniqueId());
+        if (inv == null) return;
+        int equipSlot = materialConfig.getSlotEquipment();
+        int coreSlot = materialConfig.getSlotCore();
+        int adjusterSlot = materialConfig.getSlotAdjuster();
+        ItemStack equip = inv.getItem(equipSlot);
+        ItemStack core = inv.getItem(coreSlot);
+        ItemStack adjuster = inv.getItem(adjusterSlot);
+        if (equip == null || equip.getType() == Material.AIR) {
+            setPreviewItem(inv, PREVIEW_SLOT_EQUIP, equipPreviews);
+        }
+        if (core == null || core.getType() == Material.AIR) {
+            setPreviewItem(inv, PREVIEW_SLOT_CORE, corePreviews);
+        }
+        if (adjuster == null || adjuster.getType() == Material.AIR) {
+            setPreviewItem(inv, PREVIEW_SLOT_ADJUSTER, adjusterPreviews);
+        }
+        refreshRateDisplay(player);
+    }
+
+    private void startPreviewRotation() {
+        Bukkit.getGlobalRegionScheduler().runAtFixedRate(plugin, (task) -> {
+            for (Player p : Bukkit.getOnlinePlayers()) {
+                if (openGUIs.containsKey(p.getUniqueId())) {
+                    p.getScheduler().run(plugin, (t) -> refreshPlayerPreview(p), null);
+                }
+            }
+        }, 20L, 80L);
     }
 
     public void openForgeGUI(Player player) {
@@ -42,15 +137,22 @@ public class ForgeGUI {
     }
 
     private void initGUI(Inventory inv) {
+        rotationIndex++;
+        int equipSlot = materialConfig.getSlotEquipment();
+        int coreSlot = materialConfig.getSlotCore();
+        int adjusterSlot = materialConfig.getSlotAdjuster();
         ItemStack border = createItem(Material.GRAY_STAINED_GLASS_PANE, " ");
 
         for (int i = 0; i < GUI_SIZE; i++) {
+            if (i == equipSlot || i == coreSlot || i == adjusterSlot) {
+                continue;
+            }
             inv.setItem(i, border);
         }
 
-        inv.setItem(9, createItem(Material.NAME_TAG, ChatColor.GREEN + "装备", ChatColor.GRAY + "放入要锻造的装备"));
-        inv.setItem(10, createItem(Material.NAME_TAG, ChatColor.GREEN + "强化材料", ChatColor.GRAY + "矿物→盔甲 / 亡灵→武器 / 农牧→工具"));
-        inv.setItem(11, createItem(Material.NAME_TAG, ChatColor.GREEN + "概率调整", ChatColor.GRAY + "炼狱/末地/挑战（可选）"));
+        setPreviewItem(inv, PREVIEW_SLOT_EQUIP, equipPreviews);
+        setPreviewItem(inv, PREVIEW_SLOT_CORE, corePreviews);
+        setPreviewItem(inv, PREVIEW_SLOT_ADJUSTER, adjusterPreviews);
 
         inv.setItem(materialConfig.getSlotForge(), createForgeButton());
 
@@ -58,6 +160,10 @@ public class ForgeGUI {
     }
 
     private void updateRateDisplay(Inventory inv, String adjusterCategory) {
+        updateRateDisplay(inv, adjusterCategory, 0, 0);
+    }
+
+    private void updateRateDisplay(Inventory inv, String adjusterCategory, double altarSuccessBonus, double altarFailReduction) {
         double baseFail = configManager.getAlloyForgeChance("fail-no-penalty");
         double baseDestroy = configManager.getAlloyForgeChance("equipment-destroyed");
         double baseDowngrade = configManager.getAlloyForgeChance("downgrade");
@@ -102,6 +208,37 @@ public class ForgeGUI {
                     downgrade -= adj * dnr;
                     failNoPenalty += adj;
                 }
+            }
+        }
+
+        // 应用祭坛加成（与 performForge 中的逻辑一致）
+        if (altarSuccessBonus != 0) {
+            double grabFrom = failNoPenalty + destroy + downgrade;
+            if (grabFrom > 0) {
+                double actual = Math.min(Math.abs(altarSuccessBonus), grabFrom) * (altarSuccessBonus > 0 ? 1 : -1);
+                double ratio = actual / grabFrom;
+                failNoPenalty += failNoPenalty * ratio;
+                destroy += destroy * ratio;
+                downgrade += downgrade * ratio;
+                double sp = success + perfect;
+                if (sp > 0) {
+                    success += actual * (success / sp);
+                    perfect += actual * (perfect / sp);
+                } else {
+                    success += actual * 0.7;
+                    perfect += actual * 0.3;
+                }
+            }
+        }
+        if (altarFailReduction != 0) {
+            double totalBad = destroy + downgrade;
+            if (totalBad > 0) {
+                double adj = Math.min(Math.abs(altarFailReduction), totalBad) * (altarFailReduction > 0 ? 1 : -1);
+                double dr = destroy / totalBad;
+                double dnr = downgrade / totalBad;
+                destroy -= adj * dr;
+                downgrade -= adj * dnr;
+                failNoPenalty += adj;
             }
         }
 
@@ -177,6 +314,9 @@ public class ForgeGUI {
         if (!event.getView().getTitle().equals(materialConfig.getGuiTitle())) return;
 
         int slot = event.getRawSlot();
+        Inventory inv = openGUIs.get(player.getUniqueId());
+        if (inv == null) return;
+
         if (slot >= 0 && slot < GUI_SIZE) {
             int equipSlot = materialConfig.getSlotEquipment();
             int coreSlot = materialConfig.getSlotCore();
@@ -190,25 +330,92 @@ public class ForgeGUI {
             }
 
             if (slot == equipSlot || slot == coreSlot || slot == adjusterSlot) {
-                if (event.getCurrentItem() != null && event.getCurrentItem().getType() != Material.AIR
-                    && event.getCursor() != null && event.getCursor().getType() != Material.AIR) {
-                    event.setCancelled(true);
+                event.setCancelled(true);
+                rotationIndex++;
+                ItemStack slotItem = event.getCurrentItem();
+                ItemStack cursorItem = event.getCursor();
+                ClickType click = event.getClick();
+
+                boolean slotHasItem = slotItem != null && slotItem.getType() != Material.AIR;
+                boolean cursorHasItem = cursorItem != null && cursorItem.getType() != Material.AIR;
+
+                if (slotHasItem && cursorHasItem) {
+                    inv.setItem(slot, cursorItem.clone());
+                    event.getView().setCursor(slotItem.clone());
+                    refreshRateDisplay(player);
                     return;
                 }
-                // 延迟更新概率显示（等物品放置完成后）
-                player.getScheduler().runDelayed(plugin, (task) -> {
-                    refreshRateDisplay(player);
-                }, null, 1L);
+
+                if (slotHasItem) {
+                    if (click == ClickType.RIGHT) {
+                        int take = (slotItem.getAmount() + 1) / 2;
+                        ItemStack taken = slotItem.clone();
+                        taken.setAmount(take);
+                        slotItem.setAmount(slotItem.getAmount() - take);
+                        if (slotItem.getAmount() <= 0) {
+                            inv.setItem(slot, null);
+                        } else {
+                            inv.setItem(slot, slotItem);
+                        }
+                        event.getView().setCursor(taken);
+                    } else if (click == ClickType.SHIFT_LEFT || click == ClickType.SHIFT_RIGHT) {
+                        Map<Integer, ItemStack> leftover = player.getInventory().addItem(slotItem.clone());
+                        for (ItemStack left : leftover.values()) {
+                            player.getWorld().dropItemNaturally(player.getLocation(), left);
+                        }
+                        inv.setItem(slot, null);
+                    } else {
+                        event.getView().setCursor(slotItem.clone());
+                        inv.setItem(slot, null);
+                    }
+                } else if (cursorHasItem) {
+                    if (click == ClickType.RIGHT) {
+                        ItemStack one = cursorItem.clone();
+                        one.setAmount(1);
+                        inv.setItem(slot, one);
+                        cursorItem.setAmount(cursorItem.getAmount() - 1);
+                        event.getView().setCursor(cursorItem.getAmount() > 0 ? cursorItem : null);
+                    } else {
+                        inv.setItem(slot, cursorItem.clone());
+                        event.getView().setCursor(null);
+                    }
+                }
+
+                refreshRateDisplay(player);
                 return;
             }
 
             event.setCancelled(true);
+        } else {
+            ClickType click = event.getClick();
+            if (click == ClickType.SHIFT_LEFT || click == ClickType.SHIFT_RIGHT) {
+                rotationIndex++;
+                player.getScheduler().runDelayed(plugin, (task) -> {
+                    refreshRateDisplay(player);
+                }, null, 1L);
+            }
         }
     }
 
     private void refreshRateDisplay(Player player) {
         Inventory inv = openGUIs.get(player.getUniqueId());
         if (inv == null) return;
+
+        int equipSlot = materialConfig.getSlotEquipment();
+        int coreSlot = materialConfig.getSlotCore();
+        int adjusterSlot = materialConfig.getSlotAdjuster();
+        ItemStack equip = inv.getItem(equipSlot);
+        ItemStack core = inv.getItem(coreSlot);
+        ItemStack adj = inv.getItem(adjusterSlot);
+        if (equip == null || equip.getType() == Material.AIR) {
+            setPreviewItem(inv, PREVIEW_SLOT_EQUIP, equipPreviews);
+        }
+        if (core == null || core.getType() == Material.AIR) {
+            setPreviewItem(inv, PREVIEW_SLOT_CORE, corePreviews);
+        }
+        if (adj == null || adj.getType() == Material.AIR) {
+            setPreviewItem(inv, PREVIEW_SLOT_ADJUSTER, adjusterPreviews);
+        }
 
         ItemStack adjuster = inv.getItem(materialConfig.getSlotAdjuster());
         String category = null;
@@ -218,7 +425,14 @@ public class ForgeGUI {
                 category = cat;
             }
         }
-        updateRateDisplay(inv, category);
+
+        double altarSuccess = 0;
+        double altarFail = 0;
+        if (altarManager != null) {
+            altarSuccess = altarManager.getPlayerSuccessBonus(player);
+            altarFail = altarManager.getPlayerFailReduction(player);
+        }
+        updateRateDisplay(inv, category, altarSuccess, altarFail);
     }
 
     private void performForge(Player player) {
@@ -291,6 +505,7 @@ public class ForgeGUI {
         }
         final String finalAdjCategory = adjusterCategory;
 
+        ItemStack equipmentClone = equipment.clone();
         inv.setItem(materialConfig.getSlotEquipment(), null);
         inv.setItem(materialConfig.getSlotCore(), consumeOne(strengthMat));
         inv.setItem(materialConfig.getSlotAdjuster(), adjusterMat != null && adjusterMat.getType() != Material.AIR ? consumeOne(adjusterMat) : null);
@@ -308,17 +523,21 @@ public class ForgeGUI {
         final double finalDestroyReduction = netDestroyReduction;
 
         player.getScheduler().run(plugin, (task) -> {
-            ForgeResult result = forgeManager.executeCategoryForge(player, equipment, strengthMat,
+            ForgeResult result = forgeManager.executeCategoryForge(player, equipmentClone, null,
                 adjusterMat, finalAdjCategory, finalSuccessBonus, finalDestroyReduction);
 
-            if (result != null && result != ForgeResult.EQUIPMENT_DESTROYED) {
-                Map<Integer, ItemStack> leftover = player.getInventory().addItem(equipment);
+            if (result != null && altarManager != null) {
+                altarManager.playForgeEffects(player, result);
+            }
+
+            if (result != ForgeResult.EQUIPMENT_DESTROYED) {
+                Map<Integer, ItemStack> leftover = player.getInventory().addItem(equipmentClone);
                 for (ItemStack left : leftover.values()) {
                     player.getWorld().dropItemNaturally(player.getLocation(), left);
                 }
             }
 
-            closeGUI(player);
+            refreshGUI(inv);
             forgeManager.setCooldown(player);
         }, null);
     }
@@ -359,5 +578,18 @@ public class ForgeGUI {
 
     public void removePlayer(Player player) {
         closeGUI(player);
+    }
+
+    public void closeAllGUIs() {
+        for (Map.Entry<UUID, Inventory> entry : openGUIs.entrySet()) {
+            Player player = Bukkit.getPlayer(entry.getKey());
+            if (player != null && player.isOnline()) {
+                Inventory inv = entry.getValue();
+                returnItems(player, inv.getItem(materialConfig.getSlotEquipment()));
+                returnItems(player, inv.getItem(materialConfig.getSlotCore()));
+                returnItems(player, inv.getItem(materialConfig.getSlotAdjuster()));
+            }
+        }
+        openGUIs.clear();
     }
 }
