@@ -389,10 +389,31 @@ public class ForgeGUI {
         } else {
             ClickType click = event.getClick();
             if (click == ClickType.SHIFT_LEFT || click == ClickType.SHIFT_RIGHT) {
-                rotationIndex++;
-                player.getScheduler().runDelayed(plugin, (task) -> {
-                    refreshRateDisplay(player);
-                }, null, 1L);
+                ItemStack clicked = event.getCurrentItem();
+                if (clicked != null && clicked.getType() != Material.AIR) {
+                    int equipSlot = materialConfig.getSlotEquipment();
+                    int coreSlot = materialConfig.getSlotCore();
+                    int adjusterSlot = materialConfig.getSlotAdjuster();
+                    for (int target : new int[]{equipSlot, coreSlot, adjusterSlot}) {
+                        ItemStack existing = inv.getItem(target);
+                        if (existing == null || existing.getType() == Material.AIR) {
+                            event.setCancelled(true);
+                            rotationIndex++;
+                            inv.setItem(target, clicked.clone());
+                            int raw = event.getRawSlot();
+                            if (raw >= GUI_SIZE) {
+                                int pSlot = raw - GUI_SIZE;
+                                if (pSlot < player.getInventory().getSize()) {
+                                    player.getInventory().setItem(pSlot, null);
+                                }
+                            }
+                            player.getScheduler().runDelayed(plugin, (task) -> {
+                                refreshRateDisplay(player);
+                            }, null, 1L);
+                            break;
+                        }
+                    }
+                }
             }
         }
     }
