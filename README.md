@@ -20,7 +20,7 @@
 
 ## 快速开始
 
-1. 将 `YinwuForge-1.0.9.jar` 放入 `plugins/` 目录
+1. 将 `YinwuForge-1.1.0.jar` 放入 `plugins/` 目录
 2. 重启服务器
 3. 搭建**锻造祭坛**结构（见下方用法说明）
 4. 右键祭坛中心（锻造台）→ 打开**锻造GUI**
@@ -173,7 +173,7 @@ cd YinwuForge
 mvn clean package
 ```
 
-产出：`target/YinwuForge-1.0.9.jar`
+产出：`target/YinwuForge-1.1.0.jar`
 
 ---
 
