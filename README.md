@@ -1,4 +1,4 @@
-# YinwuForge — 隐刃锻造
+# YinwuForge — Yinwu锻造
 一个为 **Folia / Paper 1.21+** 设计的 Minecraft 锻造插件，提供药水锻造与属性强化双系统。
 > ⚡ 完全兼容 Folia 区域线程调度，无 NMS、无 unsafe 反射。
 
