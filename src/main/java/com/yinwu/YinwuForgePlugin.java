@@ -1,7 +1,9 @@
 package com.yinwu;
 
 import com.yinwu.manager.*;
+import org.bukkit.Bukkit;
 import org.bukkit.plugin.java.JavaPlugin;
+import org.bukkit.event.HandlerList;
 
 public final class YinwuForgePlugin extends JavaPlugin {
 
@@ -49,6 +51,8 @@ public final class YinwuForgePlugin extends JavaPlugin {
         if (forgeGUI != null) {
             forgeGUI.closeAllGUIs();
         }
+        Bukkit.getGlobalRegionScheduler().cancelTasks(this);
+        HandlerList.unregisterAll(this);
         if (configManager.getBoolean("debug")) {
             getLogger().info("YinwuForge 已禁用。");
         }
@@ -87,11 +91,6 @@ public final class YinwuForgePlugin extends JavaPlugin {
     }
 
     public boolean isFolia() {
-        try {
-            Class.forName("io.papermc.paper.threadedregions.RegionizedServer");
-            return true;
-        } catch (ClassNotFoundException e) {
-            return false;
-        }
+        return true;
     }
 }
