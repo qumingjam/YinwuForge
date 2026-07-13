@@ -211,3 +211,10 @@ material.yml        # 材料定义文件（物品ID、名称、分类、功能�
 - 仓库：[github.com/qumingjam/YinwuForge](https://github.com/qumingjam/YinwuForge)
 - 关联项目：[YinwuRaid - 灾厄袭击](https://github.com/qumingjam/YinwuRaid)
 - 作者：Qumingjam
+
+---
+
+## 优化记录
+
+- `isFolia()` 运行时检测简化为常量 `true`（插件已要求 Folia）
+- `onDisable()` 新增 `Bukkit.getGlobalRegionScheduler().cancelTasks(this)` 和 `HandlerList.unregisterAll(this)`
