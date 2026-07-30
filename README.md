@@ -1,18 +1,18 @@
-# YinwuForge — Forge System
+# YinwuForge — 锻造系统
 
-Forge system for enhancing equipment through altars, materials, and potions.
+通过祭坛、材料和药水对装备进行强化。
 
-## Features
+## 功能
 
-- **Attribute Enhancement** — 6 attributes (damage, attack speed, armor, toughness, mining speed, durability) all ADD_NUMBER
-- **Potion Forging** — Attach potion effects to equipment
-- **Forge Altar** — Custom multi-layer 5x5 structure with second-layer bonus blocks
-- **Concentrated Materials** — 30+ material types (strength/adjuster/potion categories)
-- **Diminishing Returns** — Forge count affects yield (×1.5 for 1-5 times, ×0.2 for 41+)
-- **YinwuEnchant Integration** — 15%/30% chance to apply custom enchantments on forge success
+- **属性强化** — 6 项属性（伤害、攻速、护甲、韧性、挖掘速度、耐久）全部 ADD_NUMBER
+- **药水锻造** — 为装备附加药水效果（普通/特殊/负面）
+- **锻造祭坛** — 自定义多层 5x5 结构，第二层加成方块提升成功率
+- **浓缩材料** — 30+ 种材料，分强化/调整/药水三类
+- **收益递减** — 锻造次数越多收益越低
+- **YinwuEnchant 联动** — 锻造成功时 15%/30% 概率附加自定义附魔
 
-## Tech Stack
+## 技术栈
 
-- Java 21, Paper API 1.21+, Folia compatible
-- PDC serialization for equipment data
-- ServicesManager for ForgeAPI
+- Java 21, Paper API 1.21+, Folia 兼容
+- PDC 序列化装备数据
+- ServicesManager 注册 ForgeAPI
