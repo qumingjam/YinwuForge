@@ -1,8 +1,12 @@
 # YinwuForge — 锻造系统
 
-Version: 1.2.1
+Version: **1.2.1**
 
 通过祭坛、材料和药水对装备进行属性强化和药水附加。
+
+## 前置插件
+
+- [YinwuPluginLib](https://github.com/qumingjam/YinwuPluginLib)（必需）
 
 ## 功能
 
@@ -15,6 +19,10 @@ Version: 1.2.1
 - **材料品质倍率** — 下界合金×1.25, 钻石×1.0, 铁/铜×0.85 等
 - **YinwuEnchant 联动** — 锻造成功时 15%/30% 概率附加随机自定义附魔
 - **灾厄强化限制** — 经 YinwuRaid 灾厄强化后的物品不可锻造
+
+## 下载
+
+[YinwuForge-1.2.1.jar](https://github.com/qumingjam/YinwuForge/releases/download/v1.2.1/YinwuForge-1.2.1.jar)
 
 ## 技术栈
 
