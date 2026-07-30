@@ -1,0 +1,336 @@
+# YinwuForge 配置文件
+# 调试模式
+debug: false
+
+# 锻造物品白名单配置
+forge-whitelist:
+  # 是否启用白名单模式（true=仅允许白名单内物品锻造，false=使用默认分类）
+  enabled: true
+  
+  # 工具类（镐、斧、铲、锄）
+  tools:
+    - WOODEN_PICKAXE
+    - STONE_PICKAXE
+    - IRON_PICKAXE
+    - GOLDEN_PICKAXE
+    - DIAMOND_PICKAXE
+    - NETHERITE_PICKAXE
+    - COPPER_PICKAXE
+    - WOODEN_AXE
+    - STONE_AXE
+    - IRON_AXE
+    - GOLDEN_AXE
+    - DIAMOND_AXE
+    - NETHERITE_AXE
+    - COPPER_AXE
+    - WOODEN_SHOVEL
+    - STONE_SHOVEL
+    - IRON_SHOVEL
+    - GOLDEN_SHOVEL
+    - DIAMOND_SHOVEL
+    - NETHERITE_SHOVEL
+    - COPPER_SHOVEL
+    - WOODEN_HOE
+    - STONE_HOE
+    - IRON_HOE
+    - GOLDEN_HOE
+    - DIAMOND_HOE
+    - NETHERITE_HOE
+    - COPPER_HOE
+  
+  # 武器类（剑、重锤、三叉戟）
+  weapons:
+    - WOODEN_SWORD
+    - STONE_SWORD
+    - IRON_SWORD
+    - GOLDEN_SWORD
+    - DIAMOND_SWORD
+    - NETHERITE_SWORD
+    - COPPER_SWORD
+    - MACE
+    - TRIDENT
+  
+  # 盔甲类（头盔、胸甲、护腿、靴子）
+  armors:
+    - LEATHER_HELMET
+    - CHAINMAIL_HELMET
+    - IRON_HELMET
+    - GOLDEN_HELMET
+    - DIAMOND_HELMET
+    - NETHERITE_HELMET
+    - COPPER_HELMET
+    - LEATHER_CHESTPLATE
+    - CHAINMAIL_CHESTPLATE
+    - IRON_CHESTPLATE
+    - GOLDEN_CHESTPLATE
+    - DIAMOND_CHESTPLATE
+    - NETHERITE_CHESTPLATE
+    - COPPER_CHESTPLATE
+    - LEATHER_LEGGINGS
+    - CHAINMAIL_LEGGINGS
+    - IRON_LEGGINGS
+    - GOLDEN_LEGGINGS
+    - DIAMOND_LEGGINGS
+    - NETHERITE_LEGGINGS
+    - COPPER_LEGGINGS
+    - LEATHER_BOOTS
+    - CHAINMAIL_BOOTS
+    - IRON_BOOTS
+    - GOLDEN_BOOTS
+    - DIAMOND_BOOTS
+    - NETHERITE_BOOTS
+    - COPPER_BOOTS
+  
+  # 鞘翅
+  elytras:
+    - ELYTRA
+
+# 第一种材料（下界之星）锻造概率配置 - 用于附加药水效果
+potion-forge-chances:
+  fail-no-penalty: 20      # 无惩罚概率
+  equipment-destroyed: 15  # 装备摧毁概率
+  downgrade: 15            # 降级概率
+  success: 35              # 成功概率
+  perfect: 15              # 极品概率
+
+# 第一种材料（下界之星）配置
+potion-forge:
+  enabled: true  # 是否启用第一种材料锻造
+  material: AMETHYST_SHARD  # 基础材料类型（紫水晶碎片）
+  custom-name: "§6§l锻造奇点"  # 自定义显示名称（设置为空字符串 "" 则不检查名称）
+  lore-required: false  # 是否要求特定的 Lore（暂未实现）
+
+# 第二种材料（强化核心）锻造概率配置 - 用于强化物品属性
+alloy-forge-chances:
+  fail-no-penalty: 25      # 无惩罚概率
+  equipment-destroyed: 10  # 装备摧毁概率
+  downgrade: 15            # 降级概率
+  success: 35              # 成功概率
+  perfect: 15              # 极品概率
+
+# 锻造配置
+forge:
+  # 锻造冷却时间（秒）
+  cooldown: 3
+
+# ============================================================
+# 核心分类与装备类型映射
+# mineral → armor, undead → weapon, farming → tool
+# ============================================================
+category-equipment-map:
+  mineral: armor
+  undead: weapon
+  farming: tool
+
+# ============================================================
+# 概率调整分类配置
+# ============================================================
+adjuster-categories:
+  nether:
+    success-bonus: 15
+    destroy-increase: 5
+    fail-reduction: 10
+  end:
+    success-penalty: -10
+    destroy-reduction: 8
+  challenge:
+    destroy-reduction: 15
+    min-level: 5
+
+# ============================================================
+# 强化核心锻造配置（alloy-forge 核心体系）
+# ============================================================
+alloy-forge:
+  enabled: true
+  
+  attributes:
+    downgrade-range:
+      min: 1
+      max: 1
+    success-range:
+      min: 1
+      max: 1
+    perfect-range:
+      min: 2
+      max: 2
+    # 每点锻造加成 → 实际属性值的换算系数（ADD_NUMBER）
+    attribute-factor:
+      baseDamage: 0.4
+      attackSpeed: 0.02
+      armorValue: 0.15
+      armorToughness: 0.05
+      miningSpeed: 0.04
+  
+  equipment-types:
+    tool:
+      - maxDurability
+      - miningSpeed
+    weapon:
+      - maxDurability
+      - attackSpeed
+      - baseDamage
+    armor:
+      - maxDurability
+      - armorToughness
+      - armorValue
+    elytra:
+      - maxDurability
+      - armorValue
+  
+  attribute-names:
+    maxDurability: "耐用"
+    miningSpeed: "挖掘速度"
+    armorToughness: "韧性"
+    armorValue: "护甲值"
+    attackSpeed: "攻击速度"
+    baseDamage: "基础伤害"
+
+  # 收益递减：锻造次数 → 加成倍率
+  diminishing-tiers:
+    - max-count: 5
+      multiplier: 1.5
+    - max-count: 10
+      multiplier: 1.0
+    - max-count: 20
+      multiplier: 0.7
+    - max-count: 40
+      multiplier: 0.4
+    - max-count: 999
+      multiplier: 0.2
+
+  # 装备品质倍率
+  material-multiplier:
+    NETHERITE: 1.25
+    DIAMOND: 1.0
+    IRON: 0.85
+    COPPER: 0.85
+    STONE: 0.65
+    CHAINMAIL: 0.65
+    GOLDEN: 0.45
+    LEATHER: 0.45
+    WOODEN: 0.45
+
+# 锻造GUI配置
+forge-gui:
+  title: "§8Yinwu锻造"
+  slot-equipment: 0
+  slot-core: 1
+  slot-adjuster: 2
+  slot-forge: 13
+
+# 药水效果配置
+potion-effects:
+  # 是否启用锻造时附加药水效果功能（设置为 false 可暂时禁用）
+  enabled: true
+  
+  # 每个物品最大药水效果数量
+  max-effects-per-item: 5
+  
+  # 药水效果中文名称映射（用于显示）
+  effect-names:
+    SPEED: "速度"
+    STRENGTH: "力量"
+    HASTE: "急迫"
+    FIRE_RESISTANCE: "抗火"
+    WATER_BREATHING: "水下呼吸"
+    INVISIBILITY: "隐身"
+    NIGHT_VISION: "夜视"
+    JUMP_BOOST: "跳跃提升"
+    ABSORPTION: "伤害吸收"
+    RESISTANCE: "抗性提升"
+    REGENERATION: "生命恢复"
+    LUCK: "幸运"
+    ATTACK_SPEED: "攻击速度"
+    SLOWNESS: "缓慢"
+    WEAKNESS: "虚弱"
+    MINING_FATIGUE: "挖掘疲劳"
+    BAD_LUCK: "霉运"
+    BLINDNESS: "失明"
+    POISON: "中毒"
+    WITHER: "凋零"
+    DARKNESS: "黑暗"
+    GLOWING: "发光"
+    HEALTH_BOOST: "生命提升"
+  
+  # 普通药水效果（锻造时可添加）
+  normal-effects:
+    SPEED: 3              # 速度 I-III
+    STRENGTH: 3           # 力量 I-III
+    HASTE: 3              # 急迫 I-III
+    FIRE_RESISTANCE: 1    # 抗火 I
+    WATER_BREATHING: 1    # 水下呼吸 I
+    INVISIBILITY: 1       # 隐身 I
+    NIGHT_VISION: 1       # 夜视 I
+    JUMP_BOOST: 3         # 跳跃提升 I-III
+  
+  # 特殊药水效果（当普通效果达到上限时添加）
+  special-effects:
+    ABSORPTION: 3         # 伤害吸收 I-III
+    RESISTANCE: 3         # 抗性提升 I-III
+    REGENERATION: 2       # 生命恢复 I-II
+    LUCK: 2               # 幸运 I-II
+    ATTACK_SPEED: 3       # 攻击速度 I-III
+  
+  # 负面药水效果（失败时应用）
+  negative-effects:
+    SLOWNESS: 2           # 缓慢 I-II
+    WEAKNESS: 2           # 虚弱 I-II
+    MINING_FATIGUE: 2     # 挖掘疲劳 I-II
+    BAD_LUCK: 1           # 霉运 I
+    BLINDNESS: 1          # 失明 I
+    POISON: 2             # 中毒 I-II
+    WITHER: 1             # 凋零 I
+    DARKNESS: 1           # 黑暗 I
+
+# Boss 配置
+boss:
+  spawn-chance: 0.05       # Boss 生成概率
+  loot-multiplier: 1.5     # 战利品倍率
+
+# 交易配置
+trade:
+  singularity-price: 10    # 奇点交易价格（绿宝石）
+
+# 锻造祭坛设置
+altar:
+  enabled: true            # 是否启用祭坛锻造
+  
+  # 多层祭坛结构配置（从上到下，第一层是最顶层）
+  # 符号说明:
+  # - C: 中心方块（必须配置）
+  # - B: 底座方块（支持多种，在配置下方设置）
+  # - A: 占位符（不检测，可放置任意方块）
+  # - 具体方块名称: 如 OBSIDIAN, DIAMOND_BLOCK, NETHERITE_BLOCK 等
+  structure-layers:
+    # 第二层（顶层）- 用于提升锻造成功率（可选）
+    # 只计算B方块数量，A和C不检测
+    - - "BBBBB"
+      - "BAAAB"
+      - "BACAB"
+      - "BAAAB"
+      - "BBBBB"
+    # 第一层（底层）- 必须完整才能激活祭坛
+    - - "BBBBB"
+      - "BAAAB"
+      - "BACAB"
+      - "BAAAB"
+      - "BBBBB"
+  
+  center-block: SMITHING_TABLE  # 中心方块（C对应的方块）
+  base-blocks:                  # 底座方块（B对应的方块，支持多种）
+    - NETHERITE_BLOCK
+  
+  # 第二层加成配置（当玩家在完整祭坛进行锻造时生效）
+  # 第二层结构：在锻造台上方一格（Y+1）放置B方块，用于提升锻造成功率
+  # 计算方式：统计第二层配置中所有B位置的实际底座方块数量
+  # 最大加成：当放置满16个B方块时，成功率+32%，失败率-16%
+  layer-bonus:
+    enabled: true           # 是否启用第二层加成功能
+    max-bonus-blocks: 16    # 最多计算的B方块数量（当前结构最大16个）
+    success-bonus: 2        # 每个B方块增加的成功率(%)，加成分配给成功和极品
+    fail-reduction: 1       # 每个B方块减少的失败率(%)，只分配给装备摧毁和降级
+
+# 调度器设置
+scheduler:
+  default-delay: 20        # 默认延迟（tick）
+  default-interval: 60     # 默认间隔（tick）

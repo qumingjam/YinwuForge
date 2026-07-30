@@ -1,0 +1,20 @@
+name: ${project.name}
+version: '${project.version}'
+main: com.yinwu.YinwuForgePlugin
+api-version: '1.21'
+folia-supported: true
+authors: [yinwu]
+softdepend: [YinwuEnchant]
+description: 'A Folia-compatible forging system plugin with custom bosses and trading'
+commands:
+    yinwu:
+        description: 'Main command for YinwuForge'
+        aliases: [yf]
+        permission: yinwu.forge.use
+permissions:
+    yinwu.forge.use:
+        description: 'Use YinwuForge commands'
+        default: true
+    yinwu.forge.admin:
+        description: 'Admin permissions for YinwuForge'
+        default: op
