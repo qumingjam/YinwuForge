@@ -7,9 +7,9 @@ authors: [yinwu]
 softdepend: [YinwuEnchant]
 description: 'A Folia-compatible forging system plugin with custom bosses and trading'
 commands:
-    yinwu:
+    yf:
         description: 'Main command for YinwuForge'
-        aliases: [yf]
+        aliases: [yinwu]
         permission: yinwu.forge.use
 permissions:
     yinwu.forge.use:

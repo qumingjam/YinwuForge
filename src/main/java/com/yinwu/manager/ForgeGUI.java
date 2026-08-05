@@ -40,6 +40,7 @@ public class ForgeGUI {
     private static final int PREVIEW_SLOT_EQUIP = 9;
     private static final int PREVIEW_SLOT_CORE = 10;
     private static final int PREVIEW_SLOT_ADJUSTER = 11;
+    private static final int STATUS_SLOT = 16;
 
     public ForgeGUI(YinwuForgePlugin plugin, MaterialConfig materialConfig,
                     ForgeManager forgeManager, AltarManager altarManager,
@@ -88,7 +89,7 @@ public class ForgeGUI {
 
         corePreviews.clear();
         for (MaterialConfig.ConcentratedMat cm : materialConfig.getAllConcentrated()) {
-            ItemStack sample = cm.createItem(1);
+            ItemStack sample = cm.createItem(1, materialConfig.getCategoryLabel(cm.category));
             if (materialConfig.isStrengthMaterial(sample)) {
                 ItemMeta meta = sample.getItemMeta();
                 if (meta != null) {
@@ -106,7 +107,7 @@ public class ForgeGUI {
 
         adjusterPreviews.clear();
         for (MaterialConfig.ConcentratedMat cm : materialConfig.getAllConcentrated()) {
-            ItemStack sample = cm.createItem(1);
+            ItemStack sample = cm.createItem(1, materialConfig.getCategoryLabel(cm.category));
             if (materialConfig.isAdjusterMaterial(sample)) {
                 ItemMeta meta = sample.getItemMeta();
                 if (meta != null) {
@@ -188,8 +189,90 @@ public class ForgeGUI {
         setPreviewItem(inv, PREVIEW_SLOT_ADJUSTER, adjusterPreviews);
 
         inv.setItem(materialConfig.getSlotForge(), createForgeButton());
+        setNeutralStatus(inv);
 
         updateRateDisplay(inv, null, 0, 0, 0);
+    }
+
+    private void setNeutralStatus(Inventory inv) {
+        inv.setItem(STATUS_SLOT, createItem(Material.GRAY_STAINED_GLASS_PANE, ChatColor.GRAY + "提示信息"));
+    }
+
+    /** 在状态槽 + action bar 显示错误，聊天栏提示在 GUI 界面不显眼 */
+    private void showError(Player player, Inventory inv, String... lines) {
+        player.sendActionBar(ChatColor.RED + lines[0]);
+        ItemStack status = createItem(Material.BARRIER, ChatColor.RED + "" + ChatColor.BOLD + "⚠ " + lines[0]);
+        if (lines.length > 1) {
+            ItemMeta meta = status.getItemMeta();
+            if (meta != null) {
+                List<String> lore = new ArrayList<>();
+                for (int i = 1; i < lines.length; i++) {
+                    lore.add(ChatColor.GRAY + lines[i]);
+                }
+                meta.setLore(lore);
+                status.setItemMeta(meta);
+            }
+        }
+        inv.setItem(STATUS_SLOT, status);
+    }
+
+    /** 锻造结果也显示在状态槽 + action bar */
+    private void showResult(Player player, Inventory inv, ForgeResult result) {
+        player.sendActionBar(result.getFullMessage());
+        inv.setItem(STATUS_SLOT, createItem(Material.EXPERIENCE_BOTTLE, result.getFullMessage()));
+    }
+
+    /** 三个输入槽任一放错 → 整个 GUI 填充物变屏障方块，标注错误位置 */
+    private void refreshValidationState(Player player, Inventory inv) {
+        int equipSlot = materialConfig.getSlotEquipment();
+        int coreSlot = materialConfig.getSlotCore();
+        int adjusterSlot = materialConfig.getSlotAdjuster();
+        int forgeSlot = materialConfig.getSlotForge();
+
+        String error = null;
+        ItemStack equip = inv.getItem(equipSlot);
+        if (equip != null && equip.getType() != Material.AIR && !forgeManager.isForgeable(equip)) {
+            error = "第1格：该物品无法锻造";
+        }
+        if (error == null) {
+            ItemStack core = inv.getItem(coreSlot);
+            if (core != null && core.getType() != Material.AIR
+                && (!materialConfig.isConcentratedMaterial(core)
+                    || (!materialConfig.isStrengthMaterial(core) && !materialConfig.isPotionMaterial(core)))) {
+                error = "第2格：不是强化/药水材料";
+            }
+        }
+        if (error == null) {
+            ItemStack adj = inv.getItem(adjusterSlot);
+            if (adj != null && adj.getType() != Material.AIR
+                && (!materialConfig.isConcentratedMaterial(adj) || !materialConfig.isAdjusterMaterial(adj))) {
+                error = "第3格：不是调整材料";
+            }
+        }
+
+        if (error != null) {
+            showError(player, inv, error, "物品放错，请更换后再锻造");
+            ItemStack barrier = createItem(Material.BARRIER, ChatColor.RED + "" + ChatColor.BOLD + error);
+            for (int i = 0; i < GUI_SIZE; i++) {
+                if (i == equipSlot || i == coreSlot || i == adjusterSlot || i == forgeSlot
+                    || i == PREVIEW_SLOT_EQUIP || i == PREVIEW_SLOT_CORE || i == PREVIEW_SLOT_ADJUSTER
+                    || i == STATUS_SLOT || i == 4) {
+                    continue;
+                }
+                inv.setItem(i, barrier);
+            }
+        } else {
+            setNeutralStatus(inv);
+            ItemStack border = createItem(Material.GRAY_STAINED_GLASS_PANE, " ");
+            for (int i = 0; i < GUI_SIZE; i++) {
+                if (i == equipSlot || i == coreSlot || i == adjusterSlot || i == forgeSlot
+                    || i == PREVIEW_SLOT_EQUIP || i == PREVIEW_SLOT_CORE || i == PREVIEW_SLOT_ADJUSTER
+                    || i == STATUS_SLOT || i == 4) {
+                    continue;
+                }
+                inv.setItem(i, border);
+            }
+        }
     }
 
     private void updateRateDisplay(Inventory inv, String adjusterCategory) {
@@ -218,11 +301,16 @@ public class ForgeGUI {
 
     private void updateRateDisplay(Inventory inv, String adjusterCategory, double altarSuccessBonus,
                                     double altarFailReduction, double resonateBonus) {
-        double baseFail = configManager.getAlloyForgeChance("fail-no-penalty");
-        double baseDestroy = configManager.getAlloyForgeChance("equipment-destroyed");
-        double baseDowngrade = configManager.getAlloyForgeChance("downgrade");
-        double baseSuccess = configManager.getAlloyForgeChance("success");
-        double basePerfect = configManager.getAlloyForgeChance("perfect");
+        boolean potionForge = false;
+        ItemStack core = inv.getItem(materialConfig.getSlotCore());
+        if (core != null && core.getType() != Material.AIR) {
+            potionForge = materialConfig.isPotionMaterial(core);
+        }
+        double baseFail = potionForge ? configManager.getPotionForgeChance("fail-no-penalty") : configManager.getAlloyForgeChance("fail-no-penalty");
+        double baseDestroy = potionForge ? configManager.getPotionForgeChance("equipment-destroyed") : configManager.getAlloyForgeChance("equipment-destroyed");
+        double baseDowngrade = potionForge ? configManager.getPotionForgeChance("downgrade") : configManager.getAlloyForgeChance("downgrade");
+        double baseSuccess = potionForge ? configManager.getPotionForgeChance("success") : configManager.getAlloyForgeChance("success");
+        double basePerfect = potionForge ? configManager.getPotionForgeChance("perfect") : configManager.getAlloyForgeChance("perfect");
 
         double netSuccessBonus = 0;
         double netDestroyReduction = 0;
@@ -249,6 +337,9 @@ public class ForgeGUI {
         int perfectInt = (int) Math.round(probs[4]);
 
         List<String> lore = new ArrayList<>();
+        if (potionForge) {
+            lore.add(ChatColor.LIGHT_PURPLE + "药水锻造：附加药水效果");
+        }
         lore.add(ChatColor.GREEN + "成功: " + successInt + "%  |  极品: " + perfectInt + "%");
         lore.add(ChatColor.RED + "无惩罚: " + failInt + "%  |  摧毁: " + destroyInt + "%  |  降级: " + downgradeInt + "%");
         if (adjusterCategory != null) {
@@ -267,7 +358,7 @@ public class ForgeGUI {
         ItemStack rateItem = new ItemStack(Material.EXPERIENCE_BOTTLE);
         ItemMeta meta = rateItem.getItemMeta();
         if (meta != null) {
-            meta.setDisplayName(ChatColor.GOLD + "" + ChatColor.BOLD + "锻造概率");
+            meta.setDisplayName(ChatColor.GOLD + "" + ChatColor.BOLD + (potionForge ? "药水锻造概率" : "锻造概率"));
             meta.setLore(lore);
             rateItem.setItemMeta(meta);
         }
@@ -333,6 +424,7 @@ public class ForgeGUI {
                 if (slotHasItem && cursorHasItem) {
                     inv.setItem(slot, cursorItem.clone());
                     event.getView().setCursor(slotItem.clone());
+                    refreshValidationState(player, inv);
                     refreshRateDisplay(player);
                     return;
                 }
@@ -372,6 +464,7 @@ public class ForgeGUI {
                     }
                 }
 
+                refreshValidationState(player, inv);
                 refreshRateDisplay(player);
                 return;
             }
@@ -381,8 +474,10 @@ public class ForgeGUI {
             ClickType click = event.getClick();
             if (click == ClickType.SHIFT_LEFT || click == ClickType.SHIFT_RIGHT) {
                 rotationIndex++;
+                // shift 点击的物品转移在事件后才完成，延迟一拍再校验
                 player.getScheduler().runDelayed(plugin, (task) -> {
                     refreshRateDisplay(player);
+                    refreshValidationState(player, inv);
                 }, null, 1L);
             }
         }
@@ -440,38 +535,42 @@ public class ForgeGUI {
         ItemStack adjusterMat = inv.getItem(materialConfig.getSlotAdjuster());
 
         if (equipment == null || equipment.getType() == Material.AIR) {
-            player.sendMessage(ChatColor.RED + "请在第1格放入要锻造的装备！");
+            showError(player, inv, "请在第1格放入要锻造的装备！");
             return;
         }
 
         // 灾厄强化后的物品禁止锻造
         if (isDisasterEnhanced(equipment)) {
-            player.sendMessage(ChatColor.RED + "灾厄强化后的物品无法锻造！");
+            showError(player, inv, "灾厄强化后的物品无法锻造！");
             return;
         }
 
         if (strengthMat == null || strengthMat.getType() == Material.AIR) {
-            player.sendMessage(ChatColor.RED + "请在第2格放入强化材料！");
-            player.sendMessage(ChatColor.GRAY + "矿物→盔甲 | 亡灵→武器 | 农牧→工具");
+            showError(player, inv, "请在第2格放入强化材料！", "矿物→盔甲 | 亡灵→武器 | 农牧→工具");
             return;
         }
 
-        if (!materialConfig.isConcentratedMaterial(strengthMat) || !materialConfig.isStrengthMaterial(strengthMat)) {
-            player.sendMessage(ChatColor.RED + "第2格必须放入强化材料（矿物/亡灵/农牧系列）！");
+        if (!materialConfig.isConcentratedMaterial(strengthMat)) {
+            showError(player, inv, "第2格必须放入浓缩材料！", "强化材料或药水锻造材料");
+            return;
+        }
+        boolean potionForge = materialConfig.isPotionMaterial(strengthMat);
+        if (!potionForge && !materialConfig.isStrengthMaterial(strengthMat)) {
+            showError(player, inv, "第2格必须放入强化材料！", "强化材料：矿物/亡灵/农牧系列");
             return;
         }
 
         String category = materialConfig.getCategory(strengthMat);
         String expectedEquipType = materialConfig.getCategoryEquipmentType(category);
 
-        if (!forgeManager.isEquipmentTypeMatch(equipment, expectedEquipType)) {
+        if (!potionForge && !forgeManager.isEquipmentTypeMatch(equipment, expectedEquipType)) {
             String typeName = switch (expectedEquipType) {
                 case "armor" -> "盔甲";
                 case "weapon" -> "武器";
                 case "tool" -> "工具";
                 default -> expectedEquipType;
             };
-            player.sendMessage(ChatColor.RED + "该材料只能用于强化" + typeName + "！");
+            showError(player, inv, "该材料只能用于强化" + typeName + "！");
             return;
         }
 
@@ -483,7 +582,7 @@ public class ForgeGUI {
 
         if (adjusterMat != null && adjusterMat.getType() != Material.AIR) {
             if (!materialConfig.isConcentratedMaterial(adjusterMat) || !materialConfig.isAdjusterMaterial(adjusterMat)) {
-                player.sendMessage(ChatColor.RED + "第3格必须放入概率调整材料（炼狱/末地/挑战系列）！");
+                showError(player, inv, "第3格必须放入概率调整材料！", "调整材料：炼狱/末地/挑战系列");
                 return;
             }
 
@@ -493,8 +592,7 @@ public class ForgeGUI {
                 if ("challenge".equals(adjCategory)) {
                     int forgeCount = forgeManager.getEquipmentForgeCount(equipment);
                     if (forgeCount < ca.minLevel) {
-                        player.sendMessage(ChatColor.RED + "挑战类材料需要锻造次数 ≥ " + ca.minLevel + " 才能使用！");
-                        player.sendMessage(ChatColor.GRAY + "当前锻造次数: " + forgeCount);
+                        showError(player, inv, "挑战类材料需要锻造次数 ≥ " + ca.minLevel + "！", "当前锻造次数: " + forgeCount);
                         return;
                     }
                 }
@@ -533,8 +631,10 @@ public class ForgeGUI {
         final double finalDestroyReduction = netDestroyReduction;
 
         player.getScheduler().run(plugin, (task) -> {
-            ForgeResult result = forgeManager.executeCategoryForge(player, equipmentClone, null,
-                adjusterMat, finalAdjCategory, finalSuccessBonus, finalDestroyReduction);
+            ForgeResult result = potionForge
+                ? forgeManager.executePotionForge(player, equipmentClone, finalSuccessBonus, finalDestroyReduction)
+                : forgeManager.executeCategoryForge(player, equipmentClone, null,
+                    adjusterMat, finalAdjCategory, finalSuccessBonus, finalDestroyReduction);
 
             if (result != null && altarManager != null) {
                 altarManager.playForgeEffects(player, result);
@@ -548,6 +648,9 @@ public class ForgeGUI {
             }
 
             refreshGUI(inv);
+            if (result != null) {
+                showResult(player, inv, result);
+            }
             forgeManager.setCooldown(player);
         }, null);
     }

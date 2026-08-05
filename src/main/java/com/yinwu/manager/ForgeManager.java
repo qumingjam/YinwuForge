@@ -553,6 +553,12 @@ public class ForgeManager {
         return EquipmentType.OTHER;
     }
 
+    /** 该物品是否可锻造（非 OTHER 类型） */
+    public boolean isForgeable(ItemStack equipment) {
+        return equipment != null && equipment.getType() != Material.AIR
+            && getEquipmentType(equipment) != EquipmentType.OTHER;
+    }
+
     /**
      * 应用合金降级效果
      */
@@ -891,6 +897,106 @@ public class ForgeManager {
         playerCooldowns.put(player.getUniqueId(), System.currentTimeMillis());
 
         return result;
+    }
+
+    /**
+     * 执行药水锻造（核心材料为药水类锻造奇点）
+     */
+    public ForgeResult executePotionForge(Player player, ItemStack equipment,
+                                          double netSuccessBonus, double netDestroyReduction) {
+        if (equipment == null || equipment.getType() == Material.AIR) {
+            player.sendMessage(ChatColor.RED + "没有要锻造的装备！");
+            return null;
+        }
+        if (getEquipmentType(equipment) == EquipmentType.OTHER) {
+            player.sendMessage(ChatColor.RED + "该物品无法进行锻造！");
+            return null;
+        }
+
+        EquipmentData equipmentData = getEquipmentData(equipment);
+        ForgeResult result = determinePotionForgeResult(netSuccessBonus, netDestroyReduction);
+        applyPotionForgeResult(player, equipment, equipmentData, result);
+        playerCooldowns.put(player.getUniqueId(), System.currentTimeMillis());
+        return result;
+    }
+
+    private ForgeResult determinePotionForgeResult(double netSuccessBonus, double netDestroyReduction) {
+        double failNoPenalty = configManager.getPotionForgeChance(CHANCE_FAIL_NO_PENALTY);
+        double equipmentDestroyed = configManager.getPotionForgeChance(CHANCE_EQUIPMENT_DESTROYED);
+        double downgrade = configManager.getPotionForgeChance(CHANCE_DOWNGRADE);
+        double success = configManager.getPotionForgeChance(CHANCE_SUCCESS);
+        double perfect = configManager.getPotionForgeChance("perfect");
+
+        double[] finalProbs = calculateAdjustedProbs(failNoPenalty, equipmentDestroyed, downgrade, success, perfect,
+                                                     netSuccessBonus, netDestroyReduction);
+        double roll = ThreadLocalRandom.current().nextDouble() * 100;
+        if (roll < finalProbs[0]) return ForgeResult.FAIL_NO_PENALTY;
+        else if (roll < finalProbs[0] + finalProbs[1]) return ForgeResult.EQUIPMENT_DESTROYED;
+        else if (roll < finalProbs[0] + finalProbs[1] + finalProbs[2]) return ForgeResult.DOWNGRADE;
+        else if (roll < finalProbs[0] + finalProbs[1] + finalProbs[2] + finalProbs[3]) return ForgeResult.SUCCESS;
+        else return ForgeResult.PERFECT;
+    }
+
+    private void applyPotionForgeResult(Player player, ItemStack equipment, EquipmentData equipmentData,
+                                        ForgeResult result) {
+        switch (result) {
+            case FAIL_NO_PENALTY -> {
+                player.sendMessage(result.getFullMessage());
+                player.sendMessage(ChatColor.GRAY + "药水效果未改变");
+                saveEquipmentData(equipment, equipmentData);
+            }
+            case EQUIPMENT_DESTROYED -> {
+                player.sendMessage(result.getFullMessage());
+                player.sendMessage(ChatColor.RED + "装备已损毁！");
+                equipment.setAmount(0);
+            }
+            case DOWNGRADE -> applyPotionDowngrade(player, equipment, equipmentData);
+            case SUCCESS -> applyPotionSuccess(player, equipment, equipmentData, false);
+            case PERFECT -> applyPotionSuccess(player, equipment, equipmentData, true);
+        }
+    }
+
+    /** 成功：附加一个随机普通效果；极品：附加一个随机特殊效果 */
+    private void applyPotionSuccess(Player player, ItemStack equipment, EquipmentData equipmentData, boolean special) {
+        ForgeResult result = special ? ForgeResult.PERFECT : ForgeResult.SUCCESS;
+        List<PotionEffectData> effects = equipmentData.getPotionEffects();
+        if (effects.size() >= potionEffectManager.getMaxEffectsPerItem()) {
+            player.sendMessage(result.getFullMessage());
+            player.sendMessage(ChatColor.GRAY + "该装备的药水效果已满");
+            return;
+        }
+        PotionEffectData effect = special
+            ? potionEffectManager.getRandomSpecialEffect(effects)
+            : potionEffectManager.getRandomNormalEffect(effects);
+        if (effect == null) {
+            player.sendMessage(result.getFullMessage());
+            player.sendMessage(ChatColor.GRAY + "该装备已拥有所有可用药水效果");
+            return;
+        }
+        equipmentData.addPotionEffect(effect);
+        saveEquipmentData(equipment, equipmentData);
+        updateEquipmentLore(equipment, equipmentData);
+        String chinese = potionEffectManager.getChineseName(effect.getEffectName());
+        player.sendMessage(result.getFullMessage());
+        player.sendMessage(ChatColor.GREEN + "附加药水效果: " + chinese + " " + "I".repeat(effect.getLevel()));
+    }
+
+    /** 失败：移除最后一个药水效果 */
+    private void applyPotionDowngrade(Player player, ItemStack equipment, EquipmentData equipmentData) {
+        List<PotionEffectData> effects = equipmentData.getPotionEffects();
+        if (effects.isEmpty()) {
+            player.sendMessage(ForgeResult.DOWNGRADE.getFullMessage());
+            player.sendMessage(ChatColor.GRAY + "该装备无可移除的药水效果");
+            saveEquipmentData(equipment, equipmentData);
+            return;
+        }
+        PotionEffectData removed = effects.get(effects.size() - 1);
+        equipmentData.removePotionEffect(removed);
+        saveEquipmentData(equipment, equipmentData);
+        updateEquipmentLore(equipment, equipmentData);
+        String chinese = potionEffectManager.getChineseName(removed.getEffectName());
+        player.sendMessage(ForgeResult.DOWNGRADE.getFullMessage());
+        player.sendMessage(ChatColor.YELLOW + "药水效果 " + chinese + " 被移除");
     }
 
     /**

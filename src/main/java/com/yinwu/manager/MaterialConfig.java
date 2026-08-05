@@ -54,13 +54,16 @@ public class MaterialConfig {
             return meta.getDisplayName().equals(customName);
         }
 
-        public ItemStack createItem(int amount) {
+        public ItemStack createItem(int amount, String categoryLabel) {
             ItemStack stack = new ItemStack(material, amount);
             ItemMeta meta = stack.getItemMeta();
             if (meta != null) {
                 meta.setDisplayName(customName);
                 List<String> loreList = new ArrayList<>();
                 loreList.add(ChatColor.GRAY + lore);
+                if (categoryLabel != null && !categoryLabel.isEmpty()) {
+                    loreList.add(categoryLabel);
+                }
                 meta.setLore(loreList);
                 stack.setItemMeta(meta);
             }
@@ -201,10 +204,27 @@ public class MaterialConfig {
         return adjusterConfigs.get(category);
     }
 
+    /** 材料分类标签：强化材料（含适用装备类型）/ 调整材料 / 药水材料 */
+    public String getCategoryLabel(String category) {
+        if (categoryEquipmentMap.containsKey(category)) {
+            String typeName = switch (categoryEquipmentMap.get(category)) {
+                case "armor" -> "盔甲";
+                case "weapon" -> "武器";
+                case "tool" -> "工具";
+                default -> categoryEquipmentMap.get(category);
+            };
+            return ChatColor.AQUA + "✦ 强化材料 · 适用于" + typeName;
+        }
+        if (adjusterConfigs.containsKey(category)) {
+            return ChatColor.LIGHT_PURPLE + "✦ 调整材料";
+        }
+        return ChatColor.GOLD + "✦ 药水锻造材料";
+    }
+
     public ItemStack createItem(String id, int amount) {
         ConcentratedMat cm = concentratedMaterials.get(id);
         if (cm == null) return null;
-        return cm.createItem(amount);
+        return cm.createItem(amount, getCategoryLabel(cm.category));
     }
 
     public Collection<ConcentratedMat> getAllConcentrated() {

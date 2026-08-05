@@ -117,7 +117,7 @@ public class EventListener implements Listener {
     public void onPlayerJoin(PlayerJoinEvent event) {
         if (configManager.getBoolean("debug")) {
             event.getPlayer().sendMessage(ChatColor.GREEN + "欢迎使用 YinwuForge 锻造系统！");
-            event.getPlayer().sendMessage(ChatColor.YELLOW + "输入 /yinwu help 查看帮助");
+            event.getPlayer().sendMessage(ChatColor.YELLOW + "输入 /yf help 查看帮助");
         }
         // 玩家加入时，为其当前穿戴的所有装备应用效果
         applyAllEquipmentEffects(event.getPlayer());
@@ -138,6 +138,8 @@ public class EventListener implements Listener {
         removePlayerAllEffects(playerId);
         // 清除缓存数据
         playerActiveEffects.remove(playerId);
+        // 清理祭坛缓存
+        altarManager.removePlayer(playerId);
     }
 
     /**
@@ -182,15 +184,30 @@ public class EventListener implements Listener {
         Block block = event.getClickedBlock();
         Action action = event.getAction();
 
-        // 处理祭坛交互
+        // 处理祭坛交互（不取消事件，原版锻造台先打开；若为有效祭坛则异步验证后用锻造GUI替换）
         if (block != null && action == Action.RIGHT_CLICK_BLOCK && block.getType() == Material.SMITHING_TABLE) {
-            // 只有当祭坛结构完整时才处理锻造并取消事件
-            if (altarManager.handleAltarInteraction(player, block, action)) {
-                event.setCancelled(true);
-                return;
-            }
-            // 如果不是完整的祭坛，不取消事件，允许打开原版锻造台界面
+            altarManager.handleAltarInteractionAsync(player, block);
+            return;
         }
+
+        // 右键直接穿戴盔甲不触发 InventoryClickEvent，延迟一拍补刷新装备效果
+        if (action == Action.RIGHT_CLICK_AIR || action == Action.RIGHT_CLICK_BLOCK) {
+            ItemStack hand = player.getInventory().getItemInMainHand();
+            if (isWearable(hand)) {
+                player.getScheduler().runDelayed(plugin, (task) -> {
+                    if (player.isOnline()) checkAndUpdateEquipment(player);
+                }, null, 1L);
+            }
+        }
+    }
+
+    /** 是否为可直接右键穿戴的物品（盔甲/鞘翅） */
+    private boolean isWearable(ItemStack item) {
+        if (item == null || item.getType() == Material.AIR) return false;
+        String name = item.getType().name();
+        return name.endsWith("_HELMET") || name.endsWith("_CHESTPLATE")
+            || name.endsWith("_LEGGINGS") || name.endsWith("_BOOTS")
+            || item.getType() == Material.ELYTRA;
     }
 
     /**

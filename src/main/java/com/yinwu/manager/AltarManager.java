@@ -46,6 +46,8 @@ public class AltarManager {
     private final Set<Location> activeAltars = ConcurrentHashMap.newKeySet();
     // 玩家最后使用的祭坛位置
     private final Map<UUID, Location> playerAltars = new ConcurrentHashMap<>();
+    // 玩家祭坛加成缓存（{count, successBonus, failReduction}，激活时在区域线程计算）
+    private final Map<UUID, int[]> playerBonusCache = new ConcurrentHashMap<>();
 
     public AltarManager(YinwuForgePlugin plugin, ConfigManager configManager, ForgeManager forgeManager) {
         this.plugin = plugin;
@@ -125,22 +127,25 @@ public class AltarManager {
         loadConfig();
     }
 
-    public boolean handleAltarInteraction(Player player, Block block, Action action) {
-        if (action != Action.RIGHT_CLICK_BLOCK) {
-            return false;
-        }
-
-        if (!isAltarCenter(block)) {
-            return false;
-        }
-
-        if (!isValidAltarStructure(block)) {
-            // 不是完整的祭坛，不发送提示消息，允许打开原版锻造台界面
-            return false;
-        }
-
-        performAltarForge(player, block);
-        return true;
+    /**
+     * 异步处理祭坛交互（Folia：结构验证/加成计算/激活在祭坛区域线程执行）
+     * 调用方需已取消原版锻造台事件
+     */
+    public void handleAltarInteractionAsync(Player player, Block block) {
+        plugin.getServer().getRegionScheduler().run(plugin, block.getLocation(), (task) -> {
+            if (!isValidAltarStructure(block)) {
+                // 非完整祭坛：原版锻造台界面已打开，无需处理
+                return;
+            }
+            // 在祭坛区域线程计算加成并缓存，激活光柱
+            playerBonusCache.put(player.getUniqueId(), getBonusValues(block));
+            activateAltar(block);
+            player.getScheduler().run(plugin, (task2) -> {
+                if (!player.isOnline() || forgeGUI == null) return;
+                playerAltars.put(player.getUniqueId(), block.getLocation());
+                forgeGUI.openForgeGUI(player);
+            }, null);
+        });
     }
 
     private boolean isAltarCenter(Block block) {
@@ -270,33 +275,16 @@ public class AltarManager {
         };
     }
 
-    private void performAltarForge(Player player, Block altarBlock) {
-        if (forgeGUI == null) {
-            player.sendMessage(ChatColor.RED + "锻造系统尚未就绪！");
-            return;
-        }
-
-        activateAltar(altarBlock);
-        playerAltars.put(player.getUniqueId(), altarBlock.getLocation());
-        forgeGUI.openForgeGUI(player);
-    }
-
+    /** 玩家祭坛成功率加成（读取激活时缓存的数值，不跨区域读方块） */
     public double getPlayerSuccessBonus(Player player) {
-        Location loc = playerAltars.get(player.getUniqueId());
-        if (loc == null) return 0;
-        Block block = loc.getBlock();
-        if (block.getType() != centerBlock) return 0;
-        int[] values = getBonusValues(block);
-        return values[1];
+        int[] bonus = playerBonusCache.get(player.getUniqueId());
+        return bonus != null ? bonus[1] : 0;
     }
 
+    /** 玩家祭坛失败率减免（读取激活时缓存的数值，不跨区域读方块） */
     public double getPlayerFailReduction(Player player) {
-        Location loc = playerAltars.get(player.getUniqueId());
-        if (loc == null) return 0;
-        Block block = loc.getBlock();
-        if (block.getType() != centerBlock) return 0;
-        int[] values = getBonusValues(block);
-        return values[2];
+        int[] bonus = playerBonusCache.get(player.getUniqueId());
+        return bonus != null ? bonus[2] : 0;
     }
 
     /**
@@ -305,7 +293,10 @@ public class AltarManager {
     public void playForgeEffects(Player player, ForgeResult result) {
         Location loc = playerAltars.get(player.getUniqueId());
         if (loc == null) return;
-        playForgeEffects(player, loc, result);
+        // Folia：粒子/音效在祭坛区域线程执行
+        plugin.getServer().getRegionScheduler().run(plugin, loc, (task) -> {
+            playForgeEffects(player, loc, result);
+        });
     }
 
     private void playForgeEffects(Player player, Location location, ForgeResult result) {
@@ -364,6 +355,12 @@ public class AltarManager {
         return activeAltars.contains(centerBlock.getLocation());
     }
 
+    /** 玩家退出时清理祭坛缓存 */
+    public void removePlayer(UUID playerId) {
+        playerAltars.remove(playerId);
+        playerBonusCache.remove(playerId);
+    }
+
     public void updateAltarBeams() {
         for (Location altarLoc : activeAltars) {
             plugin.getServer().getRegionScheduler().run(plugin, altarLoc, (task) -> {
@@ -376,6 +373,13 @@ public class AltarManager {
                 Block centerBlock = world.getBlockAt(altarLoc);
                 if (!isValidAltarStructure(centerBlock)) {
                     activeAltars.remove(altarLoc);
+                    // 清理使用该祭坛的玩家加成缓存
+                    for (UUID uuid : playerAltars.keySet()) {
+                        if (altarLoc.equals(playerAltars.get(uuid))) {
+                            playerAltars.remove(uuid);
+                            playerBonusCache.remove(uuid);
+                        }
+                    }
                     return;
                 }
 

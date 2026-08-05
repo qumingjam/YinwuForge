@@ -88,10 +88,10 @@ public class CommandHandler implements TabExecutor {
 
     private void sendHelp(Player player) {
         player.sendMessage(ChatColor.GOLD + "=== YinwuForge 帮助 ===");
-        player.sendMessage(ChatColor.YELLOW + "/yinwu reload" + ChatColor.GRAY + " - 重载配置");
+        player.sendMessage(ChatColor.YELLOW + "/yf reload" + ChatColor.GRAY + " - 重载配置");
         if (player.hasPermission("yinwu.forge.admin")) {
-            player.sendMessage(ChatColor.YELLOW + "/yinwu give potion" + ChatColor.GRAY + " - 获取药水锻造材料");
-            player.sendMessage(ChatColor.YELLOW + "/yinwu give concentrated <id>" + ChatColor.GRAY + " - 获取浓缩材料");
+            player.sendMessage(ChatColor.YELLOW + "/yf give potion" + ChatColor.GRAY + " - 获取药水锻造材料");
+            player.sendMessage(ChatColor.YELLOW + "/yf give concentrated <id>" + ChatColor.GRAY + " - 获取浓缩材料");
         }
         player.sendMessage(ChatColor.GRAY + "在锻造祭坛右键打开锻造GUI");
     }
@@ -123,7 +123,7 @@ public class CommandHandler implements TabExecutor {
         }
 
         if (args.length < 2) {
-            player.sendMessage(ChatColor.RED + "用法: /yinwu give <potion|concentrated> [id]");
+            player.sendMessage(ChatColor.RED + "用法: /yf give <potion|concentrated> [id]");
             player.sendMessage(ChatColor.GRAY + "  potion - 获取药水锻造材料");
             player.sendMessage(ChatColor.GRAY + "  concentrated <id> - 获取浓缩材料");
             return;

@@ -15,6 +15,7 @@ import net.yinwu.lib.api.ForgeAPI;
 import net.yinwu.lib.plugin.YinwuPlugin;
 import org.bukkit.Bukkit;
 import org.bukkit.NamespacedKey;
+import org.bukkit.event.HandlerList;
 import org.bukkit.plugin.ServicePriority;
 
 public final class YinwuForgePlugin extends YinwuPlugin {
@@ -50,8 +51,8 @@ public final class YinwuForgePlugin extends YinwuPlugin {
         eventListener = new EventListener(this, configManager, forgeManager, potionEffectManager, altarManager);
         eventListener.setForgeGUI(forgeGUI);
 
-        getCommand("yinwu").setExecutor(commandHandler);
-        getCommand("yinwu").setTabCompleter(commandHandler);
+        getCommand("yf").setExecutor(commandHandler);
+        getCommand("yf").setTabCompleter(commandHandler);
 
         // 注册 ForgeAPI 服务（供其他 Yinwu 插件调用）
         Bukkit.getServicesManager().register(ForgeAPI.class, new ForgeAPIImpl(this, forgeManager), this, ServicePriority.Normal);
@@ -71,6 +72,7 @@ public final class YinwuForgePlugin extends YinwuPlugin {
     @Override
     public void disable() {
         Bukkit.getGlobalRegionScheduler().cancelTasks(this);
+        HandlerList.unregisterAll(this);
         if (forgeGUI != null) {
             forgeGUI.closeAllGUIs();
         }
