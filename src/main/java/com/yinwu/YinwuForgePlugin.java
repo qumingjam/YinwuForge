@@ -9,6 +9,7 @@ import com.yinwu.manager.EventListener;
 import com.yinwu.manager.ForgeGUI;
 import com.yinwu.manager.ForgeManager;
 import com.yinwu.manager.MaterialConfig;
+import com.yinwu.manager.MaterialGUI;
 import com.yinwu.manager.PotionEffectManager;
 import com.yinwu.manager.PotionForgeConfig;
 import net.yinwu.lib.api.ForgeAPI;
@@ -28,6 +29,7 @@ public final class YinwuForgePlugin extends YinwuPlugin {
     private ForgeManager forgeManager;
     private AltarManager altarManager;
     private ForgeGUI forgeGUI;
+    private MaterialGUI materialGUI;
     private CommandHandler commandHandler;
     private EventListener eventListener;
 
@@ -46,13 +48,15 @@ public final class YinwuForgePlugin extends YinwuPlugin {
         forgeManager = new ForgeManager(this, configManager, alloyForgeConfig, potionEffectManager);
         altarManager = new AltarManager(this, configManager, forgeManager);
         forgeGUI = new ForgeGUI(this, materialConfig, forgeManager, altarManager, configManager);
+        materialGUI = new MaterialGUI(this, materialConfig);
         altarManager.setForgeGUI(forgeGUI);
-        commandHandler = new CommandHandler(this, configManager, forgeManager, potionEffectManager, altarManager, materialConfig);
+        commandHandler = new CommandHandler(this, configManager, forgeManager, potionEffectManager, altarManager, materialConfig, materialGUI);
         eventListener = new EventListener(this, configManager, forgeManager, potionEffectManager, altarManager);
         eventListener.setForgeGUI(forgeGUI);
+        eventListener.setMaterialGUI(materialGUI);
 
-        getCommand("yf").setExecutor(commandHandler);
-        getCommand("yf").setTabCompleter(commandHandler);
+        getCommand("yinwuforge").setExecutor(commandHandler);
+        getCommand("yinwuforge").setTabCompleter(commandHandler);
 
         // 注册 ForgeAPI 服务（供其他 Yinwu 插件调用）
         Bukkit.getServicesManager().register(ForgeAPI.class, new ForgeAPIImpl(this, forgeManager), this, ServicePriority.Normal);
@@ -75,6 +79,9 @@ public final class YinwuForgePlugin extends YinwuPlugin {
         HandlerList.unregisterAll(this);
         if (forgeGUI != null) {
             forgeGUI.closeAllGUIs();
+        }
+        if (materialGUI != null) {
+            materialGUI.closeAll();
         }
         if (forgeManager != null) {
             forgeManager.clearCooldowns();
@@ -100,4 +107,5 @@ public final class YinwuForgePlugin extends YinwuPlugin {
     public AltarManager getAltarManager() { return altarManager; }
     public MaterialConfig getMaterialConfig() { return materialConfig; }
     public ForgeGUI getForgeGUI() { return forgeGUI; }
+    public MaterialGUI getMaterialGUI() { return materialGUI; }
 }

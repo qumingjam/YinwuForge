@@ -45,6 +45,7 @@ public class EventListener implements Listener {
     private final PotionEffectManager potionEffectManager;
     private final AltarManager altarManager;
     private ForgeGUI forgeGUI;
+    private MaterialGUI materialGUI;
 
     // 存储玩家当前穿戴的装备及其药水效果
     // Key: Player UUID, Value: Map<EquipmentSlot, List<PotionEffectData>>
@@ -85,6 +86,10 @@ public class EventListener implements Listener {
 
     public void setForgeGUI(ForgeGUI forgeGUI) {
         this.forgeGUI = forgeGUI;
+    }
+
+    public void setMaterialGUI(MaterialGUI materialGUI) {
+        this.materialGUI = materialGUI;
     }
 
     private void startPotionEffectRefreshTask() {
@@ -135,6 +140,10 @@ public class EventListener implements Listener {
         if (forgeGUI != null) {
             forgeGUI.removePlayer(player);
         }
+        // 清理材料GUI会话
+        if (materialGUI != null) {
+            materialGUI.removePlayer(player);
+        }
         // 移除所有药水效果
         removePlayerAllEffects(playerId);
         // 清除缓存数据
@@ -154,6 +163,9 @@ public class EventListener implements Listener {
         if (forgeGUI != null) {
             forgeGUI.closeGUI(player);
         }
+        if (materialGUI != null) {
+            materialGUI.removePlayer(player, event.getInventory());
+        }
     }
 
     /**
@@ -168,6 +180,11 @@ public class EventListener implements Listener {
         // 优先处理锻造GUI点击
         if (forgeGUI != null) {
             forgeGUI.handleClick(event);
+            if (event.isCancelled()) return;
+        }
+        // 材料GUI点击
+        if (materialGUI != null) {
+            materialGUI.handleClick(event);
             if (event.isCancelled()) return;
         }
 

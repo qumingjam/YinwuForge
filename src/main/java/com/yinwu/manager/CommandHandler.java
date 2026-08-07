@@ -1,6 +1,7 @@
 package com.yinwu.manager;
 
 import com.yinwu.YinwuForgePlugin;
+import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandSender;
@@ -20,40 +21,39 @@ public class CommandHandler implements TabExecutor {
     private final PotionEffectManager potionEffectManager;
     private final AltarManager altarManager;
     private final MaterialConfig materialConfig;
+    private final MaterialGUI materialGUI;
 
     private static final List<String> GIVE_TYPES = Arrays.asList("potion", "concentrated");
 
     public CommandHandler(YinwuForgePlugin plugin, ConfigManager configManager,
                           ForgeManager forgeManager, PotionEffectManager potionEffectManager,
-                          AltarManager altarManager, MaterialConfig materialConfig) {
+                          AltarManager altarManager, MaterialConfig materialConfig,
+                          MaterialGUI materialGUI) {
         this.plugin = plugin;
         this.configManager = configManager;
         this.forgeManager = forgeManager;
         this.potionEffectManager = potionEffectManager;
         this.altarManager = altarManager;
         this.materialConfig = materialConfig;
+        this.materialGUI = materialGUI;
     }
 
     @Override
     public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
-        if (!(sender instanceof Player player)) {
-            sender.sendMessage(ChatColor.RED + "此命令只能由玩家使用！");
-            return true;
-        }
-
-        if (!player.hasPermission("yinwu.forge.use")) {
-            player.sendMessage(ChatColor.RED + "你没有权限使用此命令。");
+        if (!sender.hasPermission("yinwu.forge.use")) {
+            sender.sendMessage(ChatColor.RED + "你没有权限使用此命令。");
             return true;
         }
 
         if (args.length > 0) {
             switch (args[0].toLowerCase()) {
-                case "reload" -> handleReload(player);
-                case "give" -> handleGive(player, args);
-                default -> sendHelp(player);
+                case "reload" -> handleReload(sender);
+                case "give" -> handleGive(sender, args);
+                case "gui" -> handleGui(sender);
+                default -> sendHelp(sender);
             }
         } else {
-            sendHelp(player);
+            sendHelp(sender);
         }
 
         return true;
@@ -67,38 +67,45 @@ public class CommandHandler implements TabExecutor {
             List<String> commands = new ArrayList<>();
             commands.add("reload");
             commands.add("give");
+            commands.add("gui");
             StringUtil.copyPartialMatches(args[0], commands, completions);
         } else if (args.length == 2 && args[0].equalsIgnoreCase("give")) {
             if (sender.hasPermission("yinwu.forge.admin")) {
-                StringUtil.copyPartialMatches(args[1], GIVE_TYPES, completions);
+                for (Player p : Bukkit.getOnlinePlayers())
+                    if (StringUtil.startsWithIgnoreCase(p.getName(), args[1])) completions.add(p.getName());
             }
-        } else if (args.length == 3 && args[0].equalsIgnoreCase("give")
-            && args[1].equalsIgnoreCase("concentrated")) {
+        } else if (args.length == 3 && args[0].equalsIgnoreCase("give")) {
+            if (sender.hasPermission("yinwu.forge.admin")) {
+                StringUtil.copyPartialMatches(args[2], GIVE_TYPES, completions);
+            }
+        } else if (args.length == 4 && args[0].equalsIgnoreCase("give")
+            && args[2].equalsIgnoreCase("concentrated")) {
             if (sender.hasPermission("yinwu.forge.admin")) {
                 List<String> ids = new ArrayList<>();
                 for (MaterialConfig.ConcentratedMat cm : materialConfig.getAllConcentrated()) {
                     ids.add(cm.id);
                 }
-                StringUtil.copyPartialMatches(args[2], ids, completions);
+                StringUtil.copyPartialMatches(args[3], ids, completions);
             }
         }
 
         return completions;
     }
 
-    private void sendHelp(Player player) {
-        player.sendMessage(ChatColor.GOLD + "=== YinwuForge 帮助 ===");
-        player.sendMessage(ChatColor.YELLOW + "/yf reload" + ChatColor.GRAY + " - 重载配置");
-        if (player.hasPermission("yinwu.forge.admin")) {
-            player.sendMessage(ChatColor.YELLOW + "/yf give potion" + ChatColor.GRAY + " - 获取药水锻造材料");
-            player.sendMessage(ChatColor.YELLOW + "/yf give concentrated <id>" + ChatColor.GRAY + " - 获取浓缩材料");
+    private void sendHelp(CommandSender sender) {
+        sender.sendMessage(ChatColor.GOLD + "=== YinwuForge 帮助 ===");
+        sender.sendMessage(ChatColor.YELLOW + "/yinwuforge gui" + ChatColor.GRAY + " - 查看浓缩材料");
+        if (sender.hasPermission("yinwu.forge.admin")) {
+            sender.sendMessage(ChatColor.YELLOW + "/yinwuforge reload" + ChatColor.GRAY + " - 重载配置");
+            sender.sendMessage(ChatColor.YELLOW + "/yinwuforge give <玩家> potion" + ChatColor.GRAY + " - 获取药水锻造材料");
+            sender.sendMessage(ChatColor.YELLOW + "/yinwuforge give <玩家> concentrated <id>" + ChatColor.GRAY + " - 获取浓缩材料");
         }
-        player.sendMessage(ChatColor.GRAY + "在锻造祭坛右键打开锻造GUI");
+        sender.sendMessage(ChatColor.GRAY + "在锻造祭坛右键打开锻造GUI");
     }
 
-    private void handleReload(Player player) {
-        if (!player.hasPermission("yinwu.forge.admin")) {
-            player.sendMessage(ChatColor.RED + "你没有权限重载配置。");
+    private void handleReload(CommandSender sender) {
+        if (!sender.hasPermission("yinwu.forge.admin")) {
+            sender.sendMessage(ChatColor.RED + "你没有权限重载配置。");
             return;
         }
 
@@ -109,40 +116,54 @@ public class CommandHandler implements TabExecutor {
         materialConfig.reload();
         altarManager.reloadConfig();
         forgeManager.reload();
-        player.sendMessage(ChatColor.GREEN + "配置已成功重载！");
+        sender.sendMessage(ChatColor.GREEN + "配置已成功重载！");
 
         if (configManager.getBoolean("debug")) {
-            plugin.getLogger().info("配置已被 " + player.getName() + " 重载");
+            plugin.getLogger().info("配置已被 " + sender.getName() + " 重载");
         }
     }
 
-    private void handleGive(Player player, String[] args) {
-        if (!player.hasPermission("yinwu.forge.admin")) {
-            player.sendMessage(ChatColor.RED + "你没有权限使用此命令。");
+    private void handleGive(CommandSender sender, String[] args) {
+        if (!sender.hasPermission("yinwu.forge.admin")) {
+            sender.sendMessage(ChatColor.RED + "你没有权限使用此命令。");
             return;
         }
 
-        if (args.length < 2) {
-            player.sendMessage(ChatColor.RED + "用法: /yf give <potion|concentrated> [id]");
-            player.sendMessage(ChatColor.GRAY + "  potion - 获取药水锻造材料");
-            player.sendMessage(ChatColor.GRAY + "  concentrated <id> - 获取浓缩材料");
+        if (args.length < 3) {
+            sender.sendMessage(ChatColor.RED + "用法: /yinwuforge give <玩家> <potion|concentrated> [id]");
+            sender.sendMessage(ChatColor.GRAY + "  potion - 获取药水锻造材料");
+            sender.sendMessage(ChatColor.GRAY + "  concentrated <id> - 获取浓缩材料");
             return;
         }
 
-        String type = args[1].toLowerCase();
+        Player target = Bukkit.getPlayer(args[1]);
+        if (target == null) {
+            sender.sendMessage(ChatColor.RED + "玩家未找到: " + args[1]);
+            return;
+        }
+
+        String type = args[2].toLowerCase();
         int amount = 64;
 
         switch (type) {
-            case "potion" -> givePotionForgeMaterial(player, amount);
+            case "potion" -> givePotionForgeMaterial(target, amount);
             case "concentrated" -> {
-                if (args.length < 3) {
-                    player.sendMessage(ChatColor.RED + "请指定浓缩材料ID！");
+                if (args.length < 4) {
+                    sender.sendMessage(ChatColor.RED + "请指定浓缩材料ID！");
                     return;
                 }
-                giveConcentratedMaterial(player, args[2], amount);
+                giveConcentratedMaterial(target, args[3], amount);
             }
-            default -> player.sendMessage(ChatColor.RED + "无效的类型！使用 potion 或 concentrated");
+            default -> sender.sendMessage(ChatColor.RED + "无效的类型！使用 potion 或 concentrated");
         }
+    }
+
+    private void handleGui(CommandSender sender) {
+        if (!(sender instanceof Player player)) {
+            sender.sendMessage(ChatColor.RED + "此命令只能由玩家使用！");
+            return;
+        }
+        materialGUI.open(player);
     }
 
     private void givePotionForgeMaterial(Player player, int amount) {

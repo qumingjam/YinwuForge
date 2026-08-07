@@ -175,13 +175,16 @@ public class ForgeGUI {
         int equipSlot = materialConfig.getSlotEquipment();
         int coreSlot = materialConfig.getSlotCore();
         int adjusterSlot = materialConfig.getSlotAdjuster();
-        ItemStack border = createItem(Material.GRAY_STAINED_GLASS_PANE, " ");
+
+        // 金色主题：顶部/底部橙色装饰条，中间灰色背景
+        ItemStack orange = createPane(Material.ORANGE_STAINED_GLASS_PANE);
+        ItemStack gray = createPane(Material.GRAY_STAINED_GLASS_PANE);
 
         for (int i = 0; i < GUI_SIZE; i++) {
             if (i == equipSlot || i == coreSlot || i == adjusterSlot) {
                 continue;
             }
-            inv.setItem(i, border);
+            inv.setItem(i, i < 9 || i >= 18 ? orange : gray);
         }
 
         setPreviewItem(inv, PREVIEW_SLOT_EQUIP, equipPreviews);
@@ -371,10 +374,24 @@ public class ForgeGUI {
         ItemMeta meta = button.getItemMeta();
         if (meta != null) {
             meta.setDisplayName(ChatColor.GOLD + "" + ChatColor.BOLD + "⛏ 开始锻造");
-            meta.setLore(Collections.singletonList(ChatColor.GRAY + "点击开始锻造"));
+            List<String> lore = new ArrayList<>();
+            lore.add(ChatColor.GRAY + "点击开始锻造");
+            lore.add(ChatColor.DARK_GRAY + "材料品质越高，成功率越高");
+            meta.setLore(lore);
             button.setItemMeta(meta);
         }
         return button;
+    }
+
+    /** 空白玻璃板装饰件 */
+    private ItemStack createPane(Material material) {
+        ItemStack pane = new ItemStack(material);
+        ItemMeta meta = pane.getItemMeta();
+        if (meta != null) {
+            meta.setDisplayName(" ");
+            pane.setItemMeta(meta);
+        }
+        return pane;
     }
 
     private ItemStack createItem(Material material, String name, String... lore) {
