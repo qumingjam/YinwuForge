@@ -1,6 +1,7 @@
 package com.yinwu.manager;
 
 import org.bukkit.Material;
+import org.bukkit.NamespacedKey;
 import org.bukkit.attribute.Attribute;
 import org.bukkit.attribute.AttributeModifier;
 import org.bukkit.inventory.EquipmentSlotGroup;
@@ -17,6 +18,22 @@ import java.util.Map;
 public final class AttributeUtil {
 
     private AttributeUtil() {}
+
+    /**
+     * 攻速/伤害修饰符使用的 key（插件自己的 yinwu 命名空间）。
+     * 说明：原版客户端对攻速/伤害 tooltip 只在修饰符同时匹配原版 UUID + 原版名字时才显示有效值；
+     * Paper API 无法同时指定两者，故 tooltip 仍显示修饰符原始值（-2.4/+10.2），
+     * 有效值由物品 lore 直接显示。
+     */
+    public static final NamespacedKey ATTACK_SPEED_MODIFIER_KEY = new NamespacedKey("yinwu", "yinwu_attack_speed");
+    public static final NamespacedKey ATTACK_DAMAGE_MODIFIER_KEY = new NamespacedKey("yinwu", "yinwu_damage");
+
+    /** 实验期修饰符 key（2026-08-07 曾尝试用原版 UUID/名字修 tooltip，未果）。
+     *  仅用于清理实验期锻造的旧物品，防止重新装备时新旧修饰符叠加。等旧物品重铸后可移除。 */
+    private static final NamespacedKey LEGACY_ATTACK_SPEED_KEY = NamespacedKey.minecraft("fa233e1c-4180-4865-b01b-bcce9785aca3");
+    private static final NamespacedKey LEGACY_ATTACK_DAMAGE_KEY = NamespacedKey.minecraft("cb3f55d3-645c-4f38-a497-9c13a33db5cf");
+    private static final NamespacedKey LEGACY_GENERIC_SPEED_KEY = NamespacedKey.minecraft("generic.attack_speed");
+    private static final NamespacedKey LEGACY_GENERIC_DAMAGE_KEY = NamespacedKey.minecraft("generic.attack_damage");
 
     public static boolean isArmorType(Material material) {
         if (material == Material.ELYTRA) return true;
@@ -83,7 +100,12 @@ public final class AttributeUtil {
 
         List<Map.Entry<Attribute, AttributeModifier>> toRemove = new ArrayList<>();
         for (Map.Entry<Attribute, AttributeModifier> entry : allModifiers.entries()) {
-            if ("yinwu".equals(entry.getValue().getKey().getNamespace())) {
+            NamespacedKey key = entry.getValue().getKey();
+            if ("yinwu".equals(key.getNamespace())
+                    || key.equals(LEGACY_ATTACK_SPEED_KEY)
+                    || key.equals(LEGACY_ATTACK_DAMAGE_KEY)
+                    || key.equals(LEGACY_GENERIC_SPEED_KEY)
+                    || key.equals(LEGACY_GENERIC_DAMAGE_KEY)) {
                 toRemove.add(entry);
             }
         }

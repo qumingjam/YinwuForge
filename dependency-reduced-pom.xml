@@ -9,7 +9,7 @@
   <groupId>com.yinwu</groupId>
   <artifactId>YinwuForge</artifactId>
   <name>YinwuForge</name>
-  <version>1.2.1</version>
+  <version>1.2.2</version>
   <description>A Folia-compatible forging system plugin with custom bosses and trading</description>
   <build>
     <defaultGoal>clean package</defaultGoal>

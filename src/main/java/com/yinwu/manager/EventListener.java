@@ -3,6 +3,7 @@ package com.yinwu.manager;
 import com.yinwu.YinwuForgePlugin;
 import com.yinwu.model.EquipmentAttributes;
 import com.yinwu.model.EquipmentData;
+import com.yinwu.model.ForgeAttributes;
 import com.yinwu.model.PotionEffectData;
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
@@ -62,8 +63,8 @@ public class EventListener implements Listener {
     };
 
     private static final NamespacedKey ATTR_MINING_SPEED = new NamespacedKey("yinwu", "yinwu_mining_speed");
-    private static final NamespacedKey ATTR_DAMAGE = new NamespacedKey("yinwu", "yinwu_damage");
-    private static final NamespacedKey ATTR_ATTACK_SPEED = new NamespacedKey("yinwu", "yinwu_attack_speed");
+    private static final NamespacedKey ATTR_DAMAGE = AttributeUtil.ATTACK_DAMAGE_MODIFIER_KEY;
+    private static final NamespacedKey ATTR_ATTACK_SPEED = AttributeUtil.ATTACK_SPEED_MODIFIER_KEY;
     private static final NamespacedKey ATTR_ARMOR = new NamespacedKey("yinwu", "yinwu_armor");
     private static final NamespacedKey ATTR_ARMOR_TOUGHNESS = new NamespacedKey("yinwu", "yinwu_armor_toughness");
     private static final NamespacedKey ATTR_KNOCKBACK = new NamespacedKey("yinwu", "yinwu_knockback_resistance");
@@ -140,6 +141,8 @@ public class EventListener implements Listener {
         playerActiveEffects.remove(playerId);
         // 清理祭坛缓存
         altarManager.removePlayer(playerId);
+        // 清理锻造冷却
+        forgeManager.removeCooldown(playerId);
     }
 
     /**
@@ -392,40 +395,40 @@ public class EventListener implements Listener {
 
         Multimap<Attribute, AttributeModifier> allModifiers = AttributeUtil.removeYinwuModifiers(meta);
 
-        // ===== 武器伤害/攻速：硬编码基础值 + 锻造加成 =====
-        if (attributes.getBaseDamage() != null && attributes.getBaseDamage() != 0) {
-            Double baseDamage = BaseWeaponStats.WEAPON_BASE_DAMAGE.get(material);
-            if (baseDamage != null) {
-                allModifiers.put(Attribute.ATTACK_DAMAGE, new AttributeModifier(
-                    ATTR_DAMAGE,
-                    baseDamage + attributes.getBaseDamage(),
-                    AttributeModifier.Operation.ADD_NUMBER,
-                    EquipmentSlotGroup.MAINHAND
-                ));
-            }
-            if (configManager.getBoolean("debug")) {
+        // ===== 武器伤害/攻速：始终设置基础值 + 锻造加成（锻造未roll到该属性时加成=0，保证原版伤害不丢失）=====
+        Double baseDamage = BaseWeaponStats.WEAPON_BASE_DAMAGE.get(material);
+        if (baseDamage != null) {
+            double forgeDamage = (attributes.getBaseDamage() != null ? attributes.getBaseDamage() : 0)
+                * forgeManager.getAttributeFactor(ForgeAttributes.ATTR_BASE_DAMAGE);
+            allModifiers.put(Attribute.ATTACK_DAMAGE, new AttributeModifier(
+                ATTR_DAMAGE,
+                baseDamage + forgeDamage,
+                AttributeModifier.Operation.ADD_NUMBER,
+                EquipmentSlotGroup.MAINHAND
+            ));
+            if (configManager.getBoolean("debug") && forgeDamage != 0) {
                 plugin.getLogger().info("[属性应用] 综合伤害修饰符: 基础=" + baseDamage + ", 锻造=" + attributes.getBaseDamage());
             }
         }
 
-        if (attributes.getAttackSpeed() != null && attributes.getAttackSpeed() != 0) {
-            Double baseSpeed = BaseWeaponStats.WEAPON_BASE_SPEED.get(material);
-            if (baseSpeed != null) {
-                allModifiers.put(Attribute.ATTACK_SPEED, new AttributeModifier(
-                    ATTR_ATTACK_SPEED,
-                    (baseSpeed - BaseWeaponStats.BASE_PLAYER_ATTACK_SPEED) + (attributes.getAttackSpeed() * 0.2),
-                    AttributeModifier.Operation.ADD_NUMBER,
-                    EquipmentSlotGroup.MAINHAND
-                ));
-            }
+        Double baseSpeed = BaseWeaponStats.WEAPON_BASE_SPEED.get(material);
+        if (baseSpeed != null) {
+            double forgeSpeed = (attributes.getAttackSpeed() != null ? attributes.getAttackSpeed() : 0)
+                * forgeManager.getAttributeFactor(ForgeAttributes.ATTR_ATTACK_SPEED);
+            allModifiers.put(Attribute.ATTACK_SPEED, new AttributeModifier(
+                ATTR_ATTACK_SPEED,
+                (baseSpeed - BaseWeaponStats.BASE_PLAYER_ATTACK_SPEED) + forgeSpeed,
+                AttributeModifier.Operation.ADD_NUMBER,
+                EquipmentSlotGroup.MAINHAND
+            ));
         }
 
         // 挖掘速度（工具专用）
         if (attributes.getMiningSpeed() != null && attributes.getMiningSpeed() != 0) {
             allModifiers.put(Attribute.BLOCK_BREAK_SPEED, new AttributeModifier(
                 ATTR_MINING_SPEED,
-                attributes.getMiningSpeed().doubleValue() * 0.2,
-                AttributeModifier.Operation.MULTIPLY_SCALAR_1,
+                attributes.getMiningSpeed().doubleValue() * forgeManager.getAttributeFactor(ForgeAttributes.ATTR_MINING_SPEED),
+                AttributeModifier.Operation.ADD_NUMBER,
                 EquipmentSlotGroup.MAINHAND
             ));
         }
@@ -438,7 +441,7 @@ public class EventListener implements Listener {
             double forgeArmor = (attributes.getArmorValue() != null ? attributes.getArmorValue() : 0);
             allModifiers.put(Attribute.ARMOR, new AttributeModifier(
                 ATTR_ARMOR,
-                baseArmor + forgeArmor,
+                baseArmor + forgeArmor * forgeManager.getAttributeFactor(ForgeAttributes.ATTR_ARMOR_VALUE),
                 AttributeModifier.Operation.ADD_NUMBER,
                 slotGroup
             ));
@@ -448,7 +451,7 @@ public class EventListener implements Listener {
             double forgeToughness = (attributes.getArmorToughness() != null ? attributes.getArmorToughness() : 0);
             allModifiers.put(Attribute.ARMOR_TOUGHNESS, new AttributeModifier(
                 ATTR_ARMOR_TOUGHNESS,
-                baseToughness + forgeToughness,
+                baseToughness + forgeToughness * forgeManager.getAttributeFactor(ForgeAttributes.ATTR_ARMOR_TOUGHNESS),
                 AttributeModifier.Operation.ADD_NUMBER,
                 slotGroup
             ));

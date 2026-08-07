@@ -133,6 +133,10 @@ public class AltarManager {
      */
     public void handleAltarInteractionAsync(Player player, Block block) {
         plugin.getServer().getRegionScheduler().run(plugin, block.getLocation(), (task) -> {
+            // 祭坛功能开关强制执行
+            if (!configManager.getBoolean("altar.enabled")) {
+                return; // 祭坛禁用：交还原版锻造台行为
+            }
             if (!isValidAltarStructure(block)) {
                 // 非完整祭坛：原版锻造台界面已打开，无需处理
                 return;
@@ -159,9 +163,13 @@ public class AltarManager {
             return false;
         }
 
-        // 检查中心方块上方是否为空
+        // 中心方块上方：允许空气，或顶层结构中心配置为 C 时的中心方块（对齐配置语义）
         Block above = centerBlock.getRelative(BlockFace.UP);
-        if (above.getType() != Material.AIR) {
+        boolean topCenterIsC = structureLayers.size() > 0
+            && structureLayers.get(0).size() > 2
+            && structureLayers.get(0).get(2).length() > 2
+            && structureLayers.get(0).get(2).charAt(2) == 'C';
+        if (above.getType() != Material.AIR && !(topCenterIsC && above.getType() == centerBlock.getType())) {
             return false;
         }
 

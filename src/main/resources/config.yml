@@ -131,7 +131,7 @@ adjuster-categories:
     destroy-increase: 5
     fail-reduction: 10
   end:
-    success-penalty: -10
+    success-penalty: 10
     destroy-reduction: 8
   challenge:
     destroy-reduction: 15

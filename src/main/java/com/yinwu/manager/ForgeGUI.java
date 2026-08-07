@@ -281,7 +281,7 @@ public class ForgeGUI {
 
     /** 检测玩家主副手是否持有共振附魔盾牌 */
     private int getResonateLevel(Player player) {
-        var enchant = forgeManager.getEnchantAPI();
+        var enchant = forgeManager.getEnchantLink();
         if (enchant == null) return 0;
         var inv = player.getInventory();
         for (var item : new ItemStack[]{inv.getItemInMainHand(), inv.getItemInOffHand()}) {
@@ -530,6 +530,13 @@ public class ForgeGUI {
         Inventory inv = openGUIs.get(player.getUniqueId());
         if (inv == null) return;
 
+        // 锻造冷却判定
+        if (forgeManager.isOnCooldown(player)) {
+            long secs = (forgeManager.getRemainingCooldownMillis(player) + 999) / 1000;
+            showError(player, inv, "锻造冷却中，还需 " + secs + " 秒！");
+            return;
+        }
+
         ItemStack equipment = inv.getItem(materialConfig.getSlotEquipment());
         ItemStack strengthMat = inv.getItem(materialConfig.getSlotCore());
         ItemStack adjusterMat = inv.getItem(materialConfig.getSlotAdjuster());
@@ -555,6 +562,17 @@ public class ForgeGUI {
             return;
         }
         boolean potionForge = materialConfig.isPotionMaterial(strengthMat);
+
+        // 功能开关强制执行
+        if (potionForge && !configManager.isPotionForgeEnabled()) {
+            showError(player, inv, "药水锻造已被管理员禁用！");
+            return;
+        }
+        if (!potionForge && !configManager.isAlloyForgeEnabled()) {
+            showError(player, inv, "合金锻造已被管理员禁用！");
+            return;
+        }
+
         if (!potionForge && !materialConfig.isStrengthMaterial(strengthMat)) {
             showError(player, inv, "第2格必须放入强化材料！", "强化材料：矿物/亡灵/农牧系列");
             return;

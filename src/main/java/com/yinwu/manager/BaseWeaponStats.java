@@ -29,7 +29,7 @@ public final class BaseWeaponStats {
         WEAPON_BASE_DAMAGE_INNER.put(Material.IRON_SWORD, 5.0);
         WEAPON_BASE_DAMAGE_INNER.put(Material.GOLDEN_SWORD, 3.0);
         WEAPON_BASE_DAMAGE_INNER.put(Material.DIAMOND_SWORD, 6.0);
-        WEAPON_BASE_DAMAGE_INNER.put(Material.NETHERITE_SWORD, 7.0);
+        WEAPON_BASE_DAMAGE_INNER.put(Material.NETHERITE_SWORD, 8.0);
         for (Material sw : List.of(Material.WOODEN_SWORD, Material.STONE_SWORD, Material.IRON_SWORD,
                 Material.GOLDEN_SWORD, Material.DIAMOND_SWORD, Material.NETHERITE_SWORD)) {
             WEAPON_BASE_SPEED_INNER.put(sw, 1.6);

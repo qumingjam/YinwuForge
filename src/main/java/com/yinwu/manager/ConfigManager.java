@@ -102,6 +102,20 @@ public class ConfigManager {
         return alloyForgeChances.getOrDefault(resultType, 0.0);
     }
 
+    /**
+     * 合金锻造是否启用
+     */
+    public boolean isAlloyForgeEnabled() {
+        return config.getBoolean("alloy-forge.enabled", true);
+    }
+
+    /**
+     * 药水锻造是否启用
+     */
+    public boolean isPotionForgeEnabled() {
+        return config.getBoolean("potion-forge.enabled", true);
+    }
+
     public int getInt(String key) {
         Object v = settings.get(key);
         if (v instanceof Number n) return n.intValue();

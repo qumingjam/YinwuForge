@@ -34,7 +34,7 @@ public class ForgeManager {
     private final AlloyForgeConfig alloyForgeConfig;
 
     // 跨插件联动 API
-    private volatile net.yinwu.lib.api.EnchantAPI enchantAPI;
+    private volatile com.yinwu.api.EnchantLink enchantLink;
 
     // 白名单配置
     private volatile boolean whitelistEnabled;
@@ -482,8 +482,8 @@ public class ForgeManager {
                 addAttributeToLore(lore, "挖掘速度", attrs.getMiningSpeed());
                 addAttributeToLore(lore, "护甲值", attrs.getArmorValue());
                 addAttributeToLore(lore, "韧性", attrs.getArmorToughness());
-                addAttributeToLore(lore, "攻击速度", attrs.getAttackSpeed());
-                addAttributeToLore(lore, "基础伤害", attrs.getBaseDamage());
+                addAttackSpeedToLore(lore, attrs.getAttackSpeed(), equipment.getType());
+                addAttackDamageToLore(lore, attrs.getBaseDamage(), equipment.getType());
             }
         }
 
@@ -501,6 +501,48 @@ public class ForgeManager {
             String sign = value > 0 ? "+" : "";
             lore.add(ChatColor.GREEN + "  " + name + ": " + sign + value);
         }
+    }
+
+    /**
+     * 攻击速度：显示实际值（基础攻速 + 锻造点数×系数），与原版 tooltip 一致
+     */
+    private void addAttackSpeedToLore(List<String> lore, Integer points, Material material) {
+        if (points == null) return;
+        Double baseSpeed = BaseWeaponStats.WEAPON_BASE_SPEED.get(material);
+        if (baseSpeed == null) {
+            addAttributeToLore(lore, "攻击速度", points);
+            return;
+        }
+        double factor = attributeFactor.getOrDefault(ATTR_ATTACK_SPEED, FACTOR_ATTACK_SPEED);
+        double finalSpeed = baseSpeed + points * factor;
+        lore.add(ChatColor.GREEN + "  攻击速度: " + formatAttributeValue(finalSpeed));
+    }
+
+    /**
+     * 攻击伤害：显示实际值（空手1 + 武器基础伤害 + 锻造点数×系数），与原版 tooltip 一致
+     */
+    private void addAttackDamageToLore(List<String> lore, Integer points, Material material) {
+        if (points == null) return;
+        Double baseDamage = BaseWeaponStats.WEAPON_BASE_DAMAGE.get(material);
+        if (baseDamage == null) {
+            addAttributeToLore(lore, "基础伤害", points);
+            return;
+        }
+        double factor = attributeFactor.getOrDefault(ATTR_BASE_DAMAGE, FACTOR_BASE_DAMAGE);
+        double finalDamage = 1.0 + baseDamage + points * factor;
+        lore.add(ChatColor.GREEN + "  攻击伤害: " + formatAttributeValue(finalDamage));
+    }
+
+    /** 格式化数值：最多 2 位小数，去尾部 0（与原版 tooltip 风格一致） */
+    private String formatAttributeValue(double value) {
+        String s = String.format("%.2f", value);
+        while (s.endsWith("0")) {
+            s = s.substring(0, s.length() - 1);
+        }
+        if (s.endsWith(".")) {
+            s = s.substring(0, s.length() - 1);
+        }
+        return s;
     }
 
     /**
@@ -775,7 +817,7 @@ public class ForgeManager {
             double dmgFactor = attributeFactor.getOrDefault(ATTR_BASE_DAMAGE, FACTOR_BASE_DAMAGE);
             double forgeBonus = (attributes != null && attributes.getBaseDamage() != null) ? attributes.getBaseDamage() * dmgFactor : 0;
             allModifiers.put(Attribute.ATTACK_DAMAGE, new AttributeModifier(
-                new NamespacedKey("yinwu", "yinwu_damage"),
+                AttributeUtil.ATTACK_DAMAGE_MODIFIER_KEY,
                 baseDamage + forgeBonus,
                 AttributeModifier.Operation.ADD_NUMBER,
                 MAINHAND_SLOT
@@ -788,7 +830,7 @@ public class ForgeManager {
             double factor = attributeFactor.getOrDefault(ATTR_ATTACK_SPEED, FACTOR_ATTACK_SPEED);
             double forgeBonus = (attributes != null && attributes.getAttackSpeed() != null) ? attributes.getAttackSpeed() * factor : 0;
             allModifiers.put(Attribute.ATTACK_SPEED, new AttributeModifier(
-                new NamespacedKey("yinwu", "yinwu_attack_speed"),
+                AttributeUtil.ATTACK_SPEED_MODIFIER_KEY,
                 (baseSpeed - BaseWeaponStats.BASE_PLAYER_ATTACK_SPEED) + forgeBonus,
                 AttributeModifier.Operation.ADD_NUMBER,
                 MAINHAND_SLOT
@@ -1144,16 +1186,16 @@ public class ForgeManager {
                 // 成功（计入锻造次数）
                 equipmentData.incrementForgeCount();
                 applyAlloySuccess(player, equipment, equipmentData, attributes, equipType);
-                // 联动：15%概率附加自定义附魔
-                if (ThreadLocalRandom.current().nextDouble() < 0.15) tryApplyEnchant(equipment);
+                // 联动：60%概率附加自定义附魔
+                if (ThreadLocalRandom.current().nextDouble() < 0.60) tryApplyEnchant(equipment);
                 break;
 
             case PERFECT:
                 // 极品（计入锻造次数）
                 equipmentData.incrementForgeCount();
                 applyAlloyPerfect(player, equipment, equipmentData, attributes, equipType);
-                // 联动：30%概率附加自定义附魔
-                if (ThreadLocalRandom.current().nextDouble() < 0.30) tryApplyEnchant(equipment);
+                // 联动：90%概率附加自定义附魔
+                if (ThreadLocalRandom.current().nextDouble() < 0.90) tryApplyEnchant(equipment);
                 break;
         }
     }
@@ -1183,26 +1225,47 @@ public class ForgeManager {
     }
 
     /**
-     * 设置跨插件附魔 API（由 YinwuForgePlugin 在检测到 YinwuEnchant 时调用）
+     * 获取属性转换系数（config 驱动，缺失时回退 ForgeAttributes 常量）
      */
-    public void setEnchantAPI(net.yinwu.lib.api.EnchantAPI enchantAPI) {
-        this.enchantAPI = enchantAPI;
+    public double getAttributeFactor(String attrKey) {
+        return attributeFactor.getOrDefault(attrKey, getFactor(attrKey));
     }
 
-    public net.yinwu.lib.api.EnchantAPI getEnchantAPI() {
-        return enchantAPI;
+    /**
+     * 设置跨插件附魔联动 facade（由 YinwuForgePlugin 在检测到 YinwuEnchant 时调用）
+     */
+    public void setEnchantLink(com.yinwu.api.EnchantLink link) {
+        this.enchantLink = link;
+    }
+
+    public com.yinwu.api.EnchantLink getEnchantLink() {
+        return enchantLink;
     }
 
     /**
      * 锻造成功后尝试附加自定义附魔（Forge ↔ Enchant 联动）
      */
     private void tryApplyEnchant(ItemStack equipment) {
-        if (enchantAPI == null) return;
-        var ids = enchantAPI.getEnchantmentIds();
+        if (enchantLink == null) return;
+        var ids = enchantLink.getEnchantmentIds();
         if (ids.isEmpty()) return;
-        String id = ids.get(ThreadLocalRandom.current().nextInt(ids.size()));
-        int level = 1 + ThreadLocalRandom.current().nextInt(Math.min(enchantAPI.getMaxLevel(id), 2));
-        enchantAPI.applyEnchantment(equipment, id, level);
+        // 打乱顺序逐个尝试，选一个能应用到该物品上的附魔
+        // （applyEnchantment 对不适用类型的物品会静默跳过，随机单选常落空）
+        List<String> shuffled = new java.util.ArrayList<>(ids);
+        java.util.Collections.shuffle(shuffled);
+        for (String id : shuffled) {
+            int maxLv = Math.min(enchantLink.getMaxLevel(id), 2);
+            if (maxLv <= 0) continue;
+            int level = 1 + ThreadLocalRandom.current().nextInt(maxLv);
+            enchantLink.applyEnchantment(equipment, id, level);
+            // 用 PDC 校验是否真的应用成功
+            if (enchantLink.getEnchantmentLevel(equipment, id) > 0) {
+                if (plugin.getConfigManager().getBoolean("debug")) {
+                    plugin.getLogger().info("§a[Forge↔Enchant] 锻造附加自定义附魔: " + id + " Lv" + level);
+                }
+                return;
+            }
+        }
     }
 
     /**
@@ -1210,6 +1273,33 @@ public class ForgeManager {
      */
     public void setCooldown(Player player) {
         playerCooldowns.put(player.getUniqueId(), System.currentTimeMillis());
+    }
+
+    /**
+     * 玩家是否处于锻造冷却中
+     */
+    public boolean isOnCooldown(Player player) {
+        if (cooldownSeconds <= 0) return false;
+        Long last = playerCooldowns.get(player.getUniqueId());
+        return last != null && (System.currentTimeMillis() - last) < cooldownSeconds * 1000L;
+    }
+
+    /**
+     * 剩余冷却毫秒数（无冷却时返回 0）
+     */
+    public long getRemainingCooldownMillis(Player player) {
+        if (cooldownSeconds <= 0) return 0;
+        Long last = playerCooldowns.get(player.getUniqueId());
+        if (last == null) return 0;
+        long remaining = (last + cooldownSeconds * 1000L) - System.currentTimeMillis();
+        return Math.max(0, remaining);
+    }
+
+    /**
+     * 移除单个玩家冷却（玩家退出时调用）
+     */
+    public void removeCooldown(UUID uuid) {
+        playerCooldowns.remove(uuid);
     }
 
     /**

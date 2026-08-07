@@ -81,12 +81,12 @@ public final class YinwuForgePlugin extends YinwuPlugin {
         }
     }
 
-    /** 尝试链接 Enchant 插件 */
+    /** 尝试链接 Enchant 插件（反射桥，规避 shade 导致的 ServicesManager 匹配失效） */
     private void tryEnchantLink() {
-        var enchant = Bukkit.getServicesManager().load(net.yinwu.lib.api.EnchantAPI.class);
-        if (enchant != null) {
+        var link = com.yinwu.api.EnchantLink.create();
+        if (link != null) {
             getLogger().info("§a✓ 检测到 YinwuEnchant —— 已启用锻造附魔联动");
-            forgeManager.setEnchantAPI(enchant);
+            forgeManager.setEnchantLink(link);
         } else {
             fine("未检测到 YinwuEnchant（可选依赖）");
         }
