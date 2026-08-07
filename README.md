@@ -1,7 +1,7 @@
 # YinwuForge — Yinwu锻造
 # YinwuForge — Forge System
 
-**最新版本：v1.2.1** | [下载 Release](https://github.com/qumingjam/YinwuForge/releases/tag/v1.2.1)
+**最新版本：v1.2.2** | [下载 Release](https://github.com/qumingjam/YinwuForge/releases/tag/v1.2.2)
 
 A Minecraft forge plugin for enhancing equipment through altars, materials, and potions.
 
@@ -14,6 +14,7 @@ A Minecraft forge plugin for enhancing equipment through altars, materials, and 
 ## Features | 功能概览
 
 - **Attribute Enhancement** — 6 attributes (damage, attack speed, armor, toughness, mining speed, durability) all ADD_NUMBER
+- **Effective Value Display** — 锻造 lore 直接显示攻速/伤害实际值（原版 tooltip 显示修饰符原始值属客户端行为，已用 lore 补齐有效值）
 - **Potion Forging** — Attach potion effects to equipment
 - **Forge Altar** — Custom multi-layer 5x5 structure with second-layer bonus blocks
 - **Concentrated Materials** — 30+ material types (strength/adjuster/potion categories)
