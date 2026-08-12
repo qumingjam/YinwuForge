@@ -1,7 +1,7 @@
 # YinwuForge — Yinwu锻造
 # YinwuForge — Forge System
 
-**最新版本：v1.2.2** | [下载 Release](https://github.com/qumingjam/YinwuForge/releases/tag/v1.2.2)
+**最新版本：v1.2.3** | [下载 Release](https://github.com/qumingjam/YinwuForge/releases/tag/v1.2.3)
 
 A Minecraft forge plugin for enhancing equipment through altars, materials, and potions.
 
@@ -35,7 +35,7 @@ A Minecraft forge plugin for enhancing equipment through altars, materials, and 
 
 ## Quick Start | 快速开始
 
-1. 将 `YinwuForge-1.2.1.jar` 放入 `plugins/` 目录
+1. 将 `YinwuForge-1.2.3.jar` 放入 `plugins/` 目录
 2. 重启服务器
 3. 搭建**锻造祭坛**结构（见下方用法说明）
 4. 右键祭坛中心（锻造台）→ 打开**锻造GUI**
@@ -97,7 +97,7 @@ cd YinwuForge
 mvn clean package
 ```
 
-产出：`target/YinwuForge-1.2.1.jar`
+产出：`target/YinwuForge-1.2.3.jar`
 
 ---
 
