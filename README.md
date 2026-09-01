@@ -13,13 +13,14 @@ A Minecraft forge plugin for enhancing equipment through altars, materials, and 
 
 ## Features | 功能概览
 
-- **Attribute Enhancement** — 6 attributes (damage, attack speed, armor, toughness, mining speed, durability) all ADD_NUMBER
+- **Attribute Enhancement** — 6 attributes (damage, attack speed, armor, toughness, mining speed, durability) — 5 as ADD_NUMBER modifiers, durability as max-damage bonus
 - **Effective Value Display** — 锻造 lore 直接显示攻速/伤害实际值（原版 tooltip 显示修饰符原始值属客户端行为，已用 lore 补齐有效值）
 - **Potion Forging** — Attach potion effects to equipment
 - **Forge Altar** — Custom multi-layer 5x5 structure with second-layer bonus blocks
-- **Concentrated Materials** — 30+ material types (strength/adjuster/potion categories)
-- **Diminishing Returns** — Forge count affects yield (×1.5 for 1-5 times, ×0.2 for 41+)
-- **YinwuEnchant Integration** — 15%/30% chance to apply custom enchantments on forge success
+- **Concentrated Materials** — 30 materials in 6 categories (mineral/undead/farming strength cores, nether/end/challenge adjusters) + 1 potion material
+- **Material Drops** — 击杀怪物 / 挖掘对应方块低概率额外掉落浓缩材料（无需 MythicMobs）
+- **Diminishing Returns** — Forge count affects yield (1-5×1.5 / 6-10×1.0 / 11-20×0.7 / 21-40×0.4 / 41+×0.2)
+- **YinwuEnchant Integration** — 锻造成功/极品时 60%/90% 概率附加自定义附魔（需安装 YinwuEnchant）
 
 | 模块 | 说明 |
 |------|------|
@@ -27,7 +28,8 @@ A Minecraft forge plugin for enhancing equipment through altars, materials, and 
 | ⚔️ **属性强化** | 强化装备属性（耐久、伤害、护甲、攻速等） |
 | 🗿 **锻造祭坛** | 自定义多层结构祭坛，搭建后右键打开GUI锻造 |
 | 🎛️ **GUI锻造** | 3槽位GUI：装备 + 强化材料 + 概率调整材料 |
-| 📦 **材料体系** | 30种浓缩材料 + 6大分类，MythicMobs可掉落 |
+| 📦 **材料体系** | 30种浓缩材料 + 6大分类 + 药水锻造材料，击杀/挖掘低概率掉落 |
+| 📖 **材料一览** | `/yinwuforge gui` 查看全部材料的分类、功能与ID |
 | 🎯 **概率调整** | 炼狱/末地/挑战核心，动态调整成功/损坏率 |
 | 🌟 **光柱效果** | 祭坛激活后持续显示粒子光柱 |
 
@@ -39,7 +41,7 @@ A Minecraft forge plugin for enhancing equipment through altars, materials, and 
 2. 重启服务器
 3. 搭建**锻造祭坛**结构（见下方用法说明）
 4. 右键祭坛中心（锻造台）→ 打开**锻造GUI**
-5. 放入装备 + 对应核心材料 → 锻造！
+5. 放入装备 + 对应核心材料（可选放入概率调整材料）→ 点击锻造！
 
 ---
 
@@ -47,10 +49,11 @@ A Minecraft forge plugin for enhancing equipment through altars, materials, and 
 
 | 命令 | 说明 | 权限 |
 |------|------|------|
-| `/yinwu` | 查看帮助 | `yinwu.forge.use` |
-| `/yinwu reload` | 重载所有配置 | `yinwu.forge.admin` |
-| `/yinwu give potion` | 获取药水锻造材料（锻造奇点） | `yinwu.forge.admin` |
-| `/yinwu give concentrated <id>` | 获取浓缩材料 | `yinwu.forge.admin` |
+| `/yinwuforge`（别名 `/yf`） | 查看帮助 | `yinwu.forge.use` |
+| `/yinwuforge reload` | 重载所有配置 | `yinwu.forge.admin` |
+| `/yinwuforge gui` | 打开浓缩材料一览GUI | `yinwu.forge.use` |
+| `/yinwuforge give <玩家> potion` | 获取药水锻造材料（锻造奇点） | `yinwu.forge.admin` |
+| `/yinwuforge give <玩家> concentrated <id>` | 获取浓缩材料 | `yinwu.forge.admin` |
 
 ## Permissions | 权限
 
@@ -65,24 +68,31 @@ A Minecraft forge plugin for enhancing equipment through altars, materials, and 
 
 ```
 YinwuForge
+├── api/
+│   ├── ForgeAPIImpl           # ForgeAPI 服务实现（供其他 Yinwu 插件调用）
+│   └── EnchantLink            # 与 YinwuEnchant 的反射桥接（可选联动）
 ├── manager/
-│   ├── ForgeManager           # 锻造核心逻辑
-│   ├── AltarManager           # 祭坛结构检测与效果
-│   ├── ForgeGUI               # 3槽位GUI锻造界面
+│   ├── ForgeManager           # 锻造核心逻辑（概率/收益递减/属性应用）
+│   ├── AltarManager           # 祭坛结构检测、第二层加成与光柱效果
+│   ├── ForgeGUI               # 锻造GUI（3输入槽位 + 概率显示 + 预览循环）
+│   ├── MaterialGUI            # 浓缩材料一览GUI（/yinwuforge gui）
 │   ├── MaterialConfig         # 材料定义加载(material.yml)
+│   ├── MaterialDropManager    # 浓缩材料掉落（击杀/挖掘低概率）
 │   ├── ConfigManager          # 配置管理器
-│   ├── PotionEffectManager    # 药水效果管理
+│   ├── PotionEffectManager    # 药水效果管理（穿戴应用）
 │   ├── PotionForgeConfig      # 药水锻造配置
 │   ├── AlloyForgeConfig       # 强化锻造配置
+│   ├── BaseWeaponStats        # 基础属性数据（伤害/攻速/护甲基础值）
+│   ├── AttributeUtil          # 属性修饰符工具
 │   ├── EventListener          # 事件监听
 │   └── CommandHandler         # 命令处理
 ├── model/
-│   ├── EquipmentData          # 装备锻造数据
+│   ├── EquipmentData          # 装备锻造数据（PDC 持久化）
 │   ├── EquipmentAttributes    # 装备属性数据
+│   ├── ForgeAttributes        # 属性常量与默认系数
 │   ├── PotionEffectData       # 药水效果数据
 │   └── ForgeResult            # 锻造结果枚举
-├── YinwuForgePlugin           # 主类
-└── BaseWeaponStats            # 基础属性数据
+└── YinwuForgePlugin           # 主类
 ```
 
 ---
@@ -105,7 +115,7 @@ mvn clean package
 
 - **[YinwuPluginLib](https://github.com/qumingjam/YinwuPluginLib)**（必需）
 - **[Paper API 1.21+](https://papermc.io/)**（provided）
-- **MythicMobs**（可选）
+- **[YinwuEnchant](https://github.com/qumingjam/YinwuEnchant)**（可选，锻造成功/极品时联动附加自定义附魔）
 
 ---
 
@@ -113,11 +123,11 @@ mvn clean package
 
 ```
 plugins/YinwuForge/
-├── config.yml          # 主配置文件（概率、祭坛、GUI、属性）
-└── material.yml        # 材料定义文件（物品ID、名称、分类）
+├── config.yml          # 主配置（锻造白名单/概率/收益递减/祭坛结构/GUI槽位/属性系数/掉落获取）
+└── material.yml        # 材料定义（物品ID、名称、分类、功能）
 ```
 
-使用 `/yinwu reload` 热重载所有配置。
+使用 `/yinwuforge reload` 热重载所有配置。
 
 ---
 
